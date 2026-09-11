@@ -1,0 +1,312 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-input: var(--border);
+  --color-destructive: #ff826e;
+  --radius-lg: 8px;
+}
+:root,
+.dark {
+  --background: #000;
+  --foreground: #edf2f1;
+  --primary: #c6efbc;
+  --primary-foreground: #142315;
+  --border: #303638;
+  --ring: #c6efbc;
+  --muted: #14191c;
+  --muted-foreground: #a6b0b3;
+  --accent: #242d30;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button:focus-visible,
+canvas:focus-visible {
+  outline: 2px solid #c6efbc;
+  outline-offset: 5px;
+}
+.habitat {
+  min-height: 100svh;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+.stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  outline: none;
+}
+.mast {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30px 40px;
+  pointer-events: none;
+}
+.brand {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.mark {
+  font-size: 30px;
+  font-weight: 200;
+  color: #c6efbc;
+}
+.brand h1 {
+  font-size: 20px;
+  letter-spacing: 7px;
+  margin: 0 0 5px;
+}
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #a6b0b3;
+}
+.edition {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #9fa8ab;
+}
+.guide {
+  position: absolute;
+  left: 40px;
+  top: 135px;
+  pointer-events: none;
+  max-width: 270px;
+}
+.guide h2 {
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0 0 15px;
+  letter-spacing: 2px;
+}
+.guide p {
+  font-size: 14px;
+  color: #a6b0b3;
+  line-height: 1.9;
+  margin: 0;
+}
+.status {
+  position: fixed;
+  right: 40px;
+  top: 145px;
+  text-align: right;
+  pointer-events: none;
+}
+.status span {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #a6b0b3;
+}
+.status strong {
+  display: block;
+  font-size: 21px;
+  letter-spacing: 5px;
+  font-weight: 400;
+  margin: 12px 0;
+}
+.status p {
+  font-size: 14px;
+  color: #a6b0b3;
+  max-width: 210px;
+  line-height: 1.7;
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #c6efbc;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+.bottom {
+  position: fixed;
+  z-index: 3;
+  bottom: 28px;
+  left: 40px;
+  right: 40px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  pointer-events: none;
+}
+.help {
+  font-size: 14px;
+  color: #a6b0b3;
+  line-height: 1.9;
+}
+.help kbd {
+  font: 12px monospace;
+  color: #d2dada;
+  border: 1px solid #3a4143;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+.controls button {
+  border: 1px solid #343c3f;
+  background: #111719e8;
+  color: #e0e7e7;
+  border-radius: 7px;
+  padding: 11px 15px;
+  font-size: 14px;
+  min-height: 43px;
+}
+.controls button:hover {
+  background: #273235;
+}
+.controls button.primary {
+  background: #c6efbc;
+  color: #142315;
+  border-color: #c6efbc;
+}
+.controls button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.message {
+  position: fixed;
+  z-index: 4;
+  bottom: 95px;
+  right: 40px;
+  max-width: 360px;
+  font-size: 14px;
+  line-height: 1.7;
+  background: #192124;
+  border: 1px solid #394446;
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+.camera-preview {
+  position: fixed;
+  bottom: 120px;
+  left: 40px;
+  width: 180px;
+  height: 135px;
+  object-fit: cover;
+  transform: scaleX(-1);
+  border-radius: 8px;
+  border: 1px solid #30383c;
+  opacity: 0.8;
+}
+.projection .mast,
+.projection .guide,
+.projection .status,
+.projection .bottom,
+.projection .camera-preview {
+  display: none;
+}
+.projection .stage {
+  cursor: none;
+}
+.exit-projection {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+.exit-projection:focus-visible {
+  right: 20px;
+  top: 20px;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  background: #12191c;
+  color: #fff;
+  padding: 12px 16px;
+  z-index: 10;
+}
+@media (max-width: 700px) {
+  .mast {
+    padding: 22px;
+  }
+  .edition {
+    display: none;
+  }
+  .guide {
+    left: 22px;
+    top: 105px;
+    max-width: 210px;
+  }
+  .guide h2 {
+    font-size: 21px;
+  }
+  .guide p {
+    font-size: 14px;
+  }
+  .status {
+    top: 115px;
+    right: 22px;
+  }
+  .status p {
+    display: none;
+  }
+  .status strong {
+    font-size: 17px;
+  }
+  .bottom {
+    left: 22px;
+    right: 22px;
+    bottom: 22px;
+    display: block;
+  }
+  .controls {
+    justify-content: flex-start;
+    margin-top: 15px;
+  }
+  .help {
+    font-size: 13px;
+  }
+  .camera-preview {
+    left: 22px;
+    bottom: 170px;
+    width: 120px;
+    height: 90px;
+  }
+  .message {
+    left: 22px;
+    right: 22px;
+    bottom: 165px;
+  }
+  .controls button {
+    padding: 10px 12px;
+  }
+}
