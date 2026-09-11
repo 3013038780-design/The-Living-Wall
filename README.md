@@ -1,12 +1,14 @@
 # The Living Wall · 碎光
 
+**[在线试玩 · Play the demo](https://thelivingwall.cn/)** — 无需安装或投影仪，打开后即可用鼠标互动，也可主动启用自己的摄像头。
+
 **把陪伴长成光。一个会呼吸、试探、享受抚摸，并随陪伴成长的抽象光生命。**
 
 The Living Wall is an experimental light companion that responds to gentle interaction with breathing, curiosity, trust and gradual growth.
 
 碎光希望让人走到墙前，用手触碰一个没有动物外形的生命。它先观察你，再伸出几片光试探；温柔的抚摸让它舒展、靠近，突然的挥动让它退缩。长期陪伴让白色碎光逐渐长大，出现彩色光泽。
 
-> 当前可运行的是浏览器交互原型。无框墙面投影是下一阶段目标；深度硬件已采购，尚未完成接入与实际墙面触摸验证。仓库链接用于查看项目，不等于在线试玩地址。
+> 当前可运行的是浏览器交互原型。无框墙面投影是下一阶段目标；深度硬件已采购，尚未完成接入与实际墙面触摸验证。网站已部署至腾讯云，在线试玩入口见上方。
 
 ## 现在可以体验什么
 
