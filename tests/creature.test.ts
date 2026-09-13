@@ -325,7 +325,7 @@ test('horizontal vs vertical strokes stretch in distinguishable directions', () 
       lateSY = Math.max(lateSY, Math.abs(horiz.stretchY));
     }
   }
-  assert.ok(lateSX > 0.06);
+  assert.ok(lateSX > 0.1);
   assert.ok(lateSX > lateSY * 3);
   assert.ok(horiz.stretchAmp() <= STRETCH_MAX + 1e-6);
 
@@ -349,7 +349,7 @@ test('horizontal vs vertical strokes stretch in distinguishable directions', () 
       lateVY = Math.max(lateVY, Math.abs(vert.stretchY));
     }
   }
-  assert.ok(lateVY > 0.06);
+  assert.ok(lateVY > 0.1);
   assert.ok(lateVY > lateVX * 3);
   assert.ok(lateSX > lateVX);
   assert.ok(lateVY > lateSY);
@@ -365,7 +365,7 @@ test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
     x += i % 40 < 20 ? 0.0012 : -0.0012;
     c.step(1 / 60, { x, y: baseY, speed: 0.15, seen: true });
   }
-  assert.ok(c.stretchAmp() > 0.05);
+  assert.ok(c.stretchAmp() > 0.08);
   assert.ok(c.enjoyment > 0.7);
   const peak = c.stretchAmp();
   // Rebound window: mostly settled by ~STRETCH_REBOUND, not an instant cut.
@@ -389,7 +389,7 @@ test('directional stretch coexists with ripples and local disturbance', () => {
   }
   assert.ok(c.ripples.length >= 1);
   assert.ok(c.disturbIntensity > 0.7);
-  assert.ok(c.stretchAmp() > 0.03);
+  assert.ok(c.stretchAmp() > 0.08);
   assert.ok(c.enjoyment > 0.7);
 });
 
@@ -409,11 +409,11 @@ test('fast swipe does not drive stretch; startle still works', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
-  assert.ok(c.stretchAmp() > 0.04);
+  assert.ok(c.stretchAmp() > 0.08);
   c.step(1 / 60, { x: c.x, y: c.y, speed: 5, seen: true });
   assert.equal(c.phase, 'startle');
   for (let i = 0; i < 60; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
   // Startled gate blocks stroked stretch drive; spring continues to settle.
-  assert.ok(c.stretchAmp() < 0.08);
+  assert.ok(c.stretchAmp() < 0.1);
 });

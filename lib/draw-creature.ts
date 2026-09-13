@@ -112,9 +112,12 @@ export class CreatureRenderer {
         const lux = wux * cos + wuy * sin;
         const luy = -wux * sin + wuy * cos;
         const along = qx * lux + qy * luy;
-        // Elongate along stroke; clamp via STRETCH_MAX keeps envelope conservative.
-        qx += lux * along * stretchAmp;
-        qy += luy * along * stretchAmp;
+        const ax = qx - lux * along;
+        const ay = qy - luy * along;
+        // Elongate along stroke + mild perpendicular squash so H vs V reads clearly.
+        const squash = stretchAmp * 0.5;
+        qx = lux * along * (1 + stretchAmp) + ax * (1 - squash);
+        qy = luy * along * (1 + stretchAmp) + ay * (1 - squash);
         stretchBoost = stretchAmp;
       }
       // World-space sample shared by FX-01 ripples and FX-02 local disturbance.
@@ -211,7 +214,7 @@ export class CreatureRenderer {
           (1 +
             rippleBoost * 1.4 +
             disturbBoost * 0.55 +
-            stretchBoost * 0.35),
+            stretchBoost * 0.5),
       );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
