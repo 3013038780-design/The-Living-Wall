@@ -3,6 +3,17 @@ import { Creature, ease, RIPPLE_SPEED, DISTURB_NEAR_AMP } from './creature';
 const STRETCH_VISUAL_Y = 0.75;
 const STRETCH_SQUASH = 0.5;
 const STRETCH_SQUASH_Y = 0.75;
+/** Issue #22: cut near-white shards, less cyan fog. Keep #20 luminous / shimmer. */
+const GLOW_RADIUS = 0.52;
+const GLOW_CENTER = 0.026;
+const GLOW_BREATH = 0.032;
+const GLOW_FLASH = 0.055;
+const SHADOW_BLUR_CORE = 3.2;
+const SHADOW_BLUR_SCOUT = 1.1;
+const BREATH_VOLUME = 0.15;
+const LUMINOUS_BASE = 0.84;
+const LUMINOUS_WAVE = 0.12;
+const CORE_PACK = 0.155;
 export class CreatureRenderer {
   particles = Array.from({ length: 210 }, (_, i) => ({
     i,
@@ -30,32 +41,46 @@ export class CreatureRenderer {
       t = c.time;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
-    const breathe = 1 + (c.breath - 0.5) * (0.09 + c.enjoyment * 0.12);
+    const breathe = 1 + (c.breath - 0.5) * (BREATH_VOLUME + c.enjoyment * 0.12);
     const heading = c.heading,
       cos = Math.cos(heading),
       sin = Math.sin(heading);
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, base * 0.95);
+    const glow = ctx.createRadialGradient(
+      cx,
+      cy,
+      0,
+      cx,
+      cy,
+      base * GLOW_RADIUS,
+    );
     glow.addColorStop(
       0,
-      `rgba(225,242,255,${0.06 + c.breath * 0.16 + c.enjoyment * 0.08 + c.flash * 0.16})`,
+      `rgba(252,253,255,${GLOW_CENTER + c.breath * GLOW_BREATH + c.flash * GLOW_FLASH})`,
     );
-    glow.addColorStop(0.3, 'rgba(198,227,248,.045)');
-    glow.addColorStop(1, 'rgba(198,227,248,0)');
+    glow.addColorStop(0.42, 'rgba(248,250,255,.01)');
+    glow.addColorStop(1, 'rgba(248,250,255,0)');
     ctx.fillStyle = glow;
-    ctx.fillRect(cx - base, cy - base, base * 2, base * 2);
+    ctx.fillRect(
+      cx - base * GLOW_RADIUS,
+      cy - base * GLOW_RADIUS,
+      base * GLOW_RADIUS * 2,
+      base * GLOW_RADIUS * 2,
+    );
     const towardX = c.lookX * w - cx,
       towardY = c.lookY * h - cy;
     const towardLength = Math.max(1, Math.hypot(towardX, towardY));
     const tipLength = Math.min(towardLength, base * 2.4) * c.feeler;
+    ctx.globalCompositeOperation = 'lighter';
     for (const p of this.particles) {
       const isCore = p.i < 28,
         isScout = p.i >= 194;
       const phase = p.seed;
+      const rim = isCore ? 0 : isScout ? 1 : (p.i - 28) / 166;
       let qx = 0,
         qy = 0;
       if (isCore) {
         const radius =
-          base * (0.025 + Math.sqrt(p.i / 28) * 0.21) * c.core * breathe;
+          base * (0.02 + Math.sqrt(p.i / 28) * CORE_PACK) * c.core * breathe;
         const a = p.angle + t * 0.16;
         qx = Math.cos(a) * radius * (1 + c.openness * 0.15);
         qy = Math.sin(a) * radius * 0.8;
@@ -196,11 +221,15 @@ export class CreatureRenderer {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       const alpha = isCore
-        ? 0.8 + 0.2 * Math.sin(t * 1.4 + phase) ** 2
+        ? 0.88 + 0.12 * Math.sin(t * 1.4 + phase) ** 2
         : isScout
-          ? 0.5 + c.feeler * 0.4
-          : 0.3 + 0.5 * (0.5 + 0.5 * Math.sin(phase + t * 0.8));
-      const size = p.size * (0.6 + unit / 1400) * (isCore ? 0.7 : 1);
+          ? 0.36 + c.feeler * 0.32
+          : (0.2 + 0.28 * (0.5 + 0.5 * Math.sin(phase + t * 0.8))) *
+            (1 - rim * 0.42);
+      const size =
+        p.size *
+        (0.55 + unit / 1400) *
+        (isCore ? 0.92 : isScout ? 0.62 : 0.78 - rim * 0.28);
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(
@@ -214,30 +243,33 @@ export class CreatureRenderer {
       const luminous = Math.min(
         1,
         alpha *
-          (0.46 + wave * 0.54) *
+          (LUMINOUS_BASE + wave * LUMINOUS_WAVE) *
           (1 + rippleBoost * 0.9 + disturbBoost * 0.3 + stretchBoost * 0.25),
       );
-      const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
+      const saturation = isCore ? c.maturity * 8 : c.maturity * 70;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
-      ctx.fillStyle = `hsla(${hue},${saturation}%,${isCore ? 96 : 88 - c.maturity * 16}%,${luminous})`;
-      ctx.shadowColor = 'rgba(210,234,255,.65)';
-      ctx.shadowBlur = isCore ? 12 : isScout ? 7 : 2;
-      ctx.beginPath();
-      if (isCore) {
-        ctx.moveTo(-size * 0.6, -size * 0.65);
-        ctx.lineTo(size * 0.75, -size * 0.18);
-        ctx.lineTo(size * 0.4, size * 0.65);
-        ctx.lineTo(-size * 0.7, size * 0.25);
-      } else {
-        ctx.moveTo(-size, -size * 0.22);
-        ctx.lineTo(size * 0.6, -size * 0.35);
-        ctx.lineTo(size, size * 0.22);
-        ctx.lineTo(-size * 0.55, size * 0.28);
-      }
-      ctx.closePath();
-      ctx.fill();
+      const light = isCore ? 98 : 95 - c.maturity * 12;
+      ctx.fillStyle = `hsla(${hue},${saturation}%,${light}%,${luminous})`;
+      ctx.shadowColor = 'rgba(255,255,255,.2)';
+      ctx.shadowBlur = isCore
+        ? SHADOW_BLUR_CORE
+        : isScout
+          ? SHADOW_BLUR_SCOUT
+          : 0;
+      const hw = isCore
+        ? size * 0.55
+        : isScout
+          ? size * 0.82
+          : size * (0.68 - rim * 0.16);
+      const hh = isCore
+        ? size * 0.36
+        : isScout
+          ? size * 0.075
+          : size * (0.155 - rim * 0.07);
+      ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
       ctx.restore();
     }
+    ctx.globalCompositeOperation = 'source-over';
     if (marker && c.presence > 0.1) {
       ctx.strokeStyle = `rgba(198,239,188,${c.presence * 0.45})`;
       ctx.lineWidth = 1;
