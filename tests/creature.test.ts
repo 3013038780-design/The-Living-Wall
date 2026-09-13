@@ -4,6 +4,10 @@ import {
   Creature,
   disturbFalloff,
   DISTURB_RADIUS,
+  STRETCH_GAIN,
+  STRETCH_GAIN_Y,
+  STRETCH_MAX,
+  STRETCH_REBOUND,
   type Signal,
   type Phase,
 } from '../lib/creature.ts';
@@ -187,7 +191,12 @@ void test('a sudden scare interrupts pleasure promptly', () => {
 test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => {
   const stroked = new Creature();
   for (let i = 0; i < 480; i++)
-    stroked.step(1 / 60, { x: stroked.x + 0.065, y: stroked.y, speed: 0.15, seen: true });
+    stroked.step(1 / 60, {
+      x: stroked.x + 0.065,
+      y: stroked.y,
+      speed: 0.15,
+      seen: true,
+    });
   assert.ok(stroked.enjoyment > 0.7);
   assert.ok(stroked.ripples.length >= 1);
   assert.ok(stroked.ripples.length <= 3);
@@ -198,7 +207,12 @@ test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => 
 
   const swipe = new Creature();
   for (let i = 0; i < 480; i++)
-    swipe.step(1 / 60, { x: swipe.x + 0.12, y: swipe.y, speed: 1.2, seen: true });
+    swipe.step(1 / 60, {
+      x: swipe.x + 0.12,
+      y: swipe.y,
+      speed: 1.2,
+      seen: true,
+    });
   assert.equal(swipe.ripples.length, 0);
   assert.ok(swipe.enjoyment < 0.2);
 
@@ -230,7 +244,6 @@ test('startle clears new ripple spawning without freezing breath recovery path',
   assert.ok(c.ripples.length <= before);
   assert.ok(c.breathPeriod > 0);
 });
-
 
 test('gentle strokes raise local disturbance near contact more than far', () => {
   const c = new Creature();
@@ -295,6 +308,130 @@ test('fast swipe does not drive local disturbance; startle still works', () => {
 test('disturbFalloff is near-strong and far-weak within the influence radius', () => {
   assert.ok(disturbFalloff(0) > 0.99);
   assert.ok(disturbFalloff(DISTURB_RADIUS * 0.5) < disturbFalloff(0));
-  assert.ok(disturbFalloff(DISTURB_RADIUS) < disturbFalloff(DISTURB_RADIUS * 0.5));
+  assert.ok(
+    disturbFalloff(DISTURB_RADIUS) < disturbFalloff(DISTURB_RADIUS * 0.5),
+  );
   assert.ok(disturbFalloff(DISTURB_RADIUS * 2) < 0.05);
+});
+
+test('horizontal vs vertical strokes stretch in distinguishable directions', () => {
+  const horiz = new Creature();
+  for (let i = 0; i < 480; i++)
+    horiz.step(1 / 60, {
+      x: horiz.x + 0.065,
+      y: horiz.y,
+      speed: 0.15,
+      seen: true,
+    });
+  assert.ok(horiz.enjoyment > 0.7);
+  // Fixed world Y, oscillate X within body so stroke delta is horizontal.
+  const baseY = horiz.y;
+  let x = horiz.x + 0.05;
+  let lateSX = 0;
+  let lateSY = 0;
+  for (let i = 0; i < 200; i++) {
+    x += i % 40 < 20 ? 0.0012 : -0.0012;
+    horiz.step(1 / 60, { x, y: baseY, speed: 0.14, seen: true });
+    // Ignore early frames while the stretch axis reorients from warm-up motion.
+    if (i >= 80) {
+      lateSX = Math.max(lateSX, Math.abs(horiz.stretchX));
+      lateSY = Math.max(lateSY, Math.abs(horiz.stretchY));
+    }
+  }
+  assert.ok(lateSX > 0.1);
+  assert.ok(lateSX > lateSY * 4);
+  assert.ok(lateSY < 0.03);
+  assert.ok(horiz.stretchAmp() <= STRETCH_MAX + 1e-6);
+
+  const vert = new Creature();
+  for (let i = 0; i < 480; i++)
+    vert.step(1 / 60, {
+      x: vert.x + 0.065,
+      y: vert.y,
+      speed: 0.15,
+      seen: true,
+    });
+  const baseX = vert.x + 0.05;
+  let y = vert.y;
+  let lateVX = 0;
+  let lateVY = 0;
+  for (let i = 0; i < 200; i++) {
+    y += i % 40 < 20 ? 0.0012 : -0.0012;
+    vert.step(1 / 60, { x: baseX, y, speed: 0.14, seen: true });
+    if (i >= 80) {
+      lateVX = Math.max(lateVX, Math.abs(vert.stretchX));
+      lateVY = Math.max(lateVY, Math.abs(vert.stretchY));
+    }
+  }
+  assert.ok(lateVY > 0.1);
+  assert.ok(lateVY > lateVX * 4);
+  assert.ok(lateVX < 0.03);
+  assert.ok(lateSX > lateVX);
+  assert.ok(lateVY > lateSY);
+  // Locked peaks should sit near the per-axis gains (Y uses the higher gain).
+  assert.ok(lateSX > STRETCH_GAIN * 0.7);
+  assert.ok(lateVY > STRETCH_GAIN_Y * 0.7);
+});
+
+test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  const baseY = c.y;
+  let x = c.x + 0.05;
+  for (let i = 0; i < 120; i++) {
+    x += i % 40 < 20 ? 0.0012 : -0.0012;
+    c.step(1 / 60, { x, y: baseY, speed: 0.15, seen: true });
+  }
+  assert.ok(c.stretchAmp() > 0.08);
+  assert.ok(c.enjoyment > 0.7);
+  const peak = c.stretchAmp();
+  // Rebound window: mostly settled by ~STRETCH_REBOUND, not an instant cut.
+  run(c, STRETCH_REBOUND * 0.25, { ...gentle, seen: false, speed: 0 });
+  assert.ok(c.stretchAmp() < peak * 1.15); // may briefly overshoot
+  assert.ok(c.enjoyment > 0.45);
+  run(c, STRETCH_REBOUND * 1.6, { ...gentle, seen: false, speed: 0 });
+  assert.ok(c.stretchAmp() < 0.02);
+  assert.ok(c.enjoyment > 0.2);
+});
+
+test('directional stretch coexists with ripples and local disturbance', () => {
+  const c = new Creature();
+  let hx = 0.57;
+  for (let i = 0; i < 900; i++) {
+    hx += i % 40 < 20 ? 0.0015 : -0.0015;
+    c.step(1 / 60, { x: hx, y: c.y, speed: 0.15, seen: true });
+    assert.ok(c.ripples.length <= 3);
+    assert.ok(c.disturbIntensity <= 1);
+    assert.ok(c.stretchAmp() <= STRETCH_MAX + 1e-6);
+  }
+  assert.ok(c.ripples.length >= 1);
+  assert.ok(c.disturbIntensity > 0.7);
+  assert.ok(c.stretchAmp() > 0.08);
+  assert.ok(c.enjoyment > 0.7);
+});
+
+test('fast swipe does not drive stretch; startle still works', () => {
+  const swipe = new Creature();
+  for (let i = 0; i < 480; i++)
+    swipe.step(1 / 60, {
+      x: swipe.x + 0.12,
+      y: swipe.y,
+      speed: 1.2,
+      seen: true,
+    });
+  assert.ok(swipe.stretchAmp() < 0.02);
+  assert.ok(swipe.disturbIntensity < 0.05);
+  assert.equal(swipe.ripples.length, 0);
+
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.stretchAmp() > 0.08);
+  c.step(1 / 60, { x: c.x, y: c.y, speed: 5, seen: true });
+  assert.equal(c.phase, 'startle');
+  for (let i = 0; i < 60; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  // Startled gate blocks stroked stretch drive; spring continues to settle.
+  assert.ok(c.stretchAmp() < 0.1);
 });

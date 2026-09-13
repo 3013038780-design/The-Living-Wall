@@ -51,6 +51,21 @@ export function disturbFalloff(
   const t = dist / Math.max(radius, 1e-6);
   return Math.exp(-t * t * falloff);
 }
+/** FX-03 directional stretch / rebound tuning (documented in PR / PRD). */
+/** Peak elongation along a horizontal stroke (fraction of body base). */
+export const STRETCH_GAIN = 0.2;
+/** Vertical target is a bit higher so Y can reach the clamp on a locked V stroke. */
+export const STRETCH_GAIN_Y = 0.24;
+/** Hard clamp on |stretch| components — keeps body envelope conservative. */
+export const STRETCH_MAX = 0.24;
+/** Ease rate toward stroke-aligned target while stroking (responsive for slow strokes). */
+export const STRETCH_RISE = 10;
+/** Rebound duration target (~slightly underdamped spring period), mid of 0.3–0.8s. */
+export const STRETCH_REBOUND = 0.55;
+/** Underdamped spring ζ so stop shows a short rebound overshoot then settles. */
+export const STRETCH_DAMPING = 0.78;
+/** Lock to H or V when |major look-delta| exceeds this times |minor|. */
+export const STRETCH_AXIS_LOCK = 1.25;
 export type Signal = {
   x: number;
   y: number;
@@ -156,6 +171,19 @@ export class Creature {
   disturbY = 0.53;
   /** 0..1 envelope; rises while stroked, settles after leave. */
   disturbIntensity = 0;
+  /** FX-03: aspect-corrected stretch components along recent stroke direction. */
+  stretchX = 0;
+  stretchY = 0;
+  private stretchVx = 0;
+  private stretchVy = 0;
+  /** Short-window look-delta accumulator — stabilizes direction on slow strokes. */
+  private strokeAccX = 0;
+  private strokeAccY = 0;
+  /** Latched dominant axis so jitter does not pull a clear H/V stroke diagonal. */
+  private stretchAxis: '' | 'h' | 'v' = '';
+  private prevLookX = 0.5;
+  private prevLookY = 0.53;
+  private hasPrevLook = false;
   private wasPresent = false;
   private calm = 0;
   private lost = false;
@@ -173,6 +201,10 @@ export class Creature {
       (py - this.disturbY) * this.aspectY,
     );
     return this.disturbIntensity * disturbFalloff(dist);
+  }
+  /** Signed stretch amplitude (aspect-corrected); used by renderer and tests. */
+  stretchAmp() {
+    return Math.hypot(this.stretchX, this.stretchY);
   }
   private enter(phase: Phase) {
     if (phase !== this.phase) {
@@ -338,7 +370,8 @@ export class Creature {
     this.rippleCooldown = Math.max(0, this.rippleCooldown - dt);
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       this.ripples[i].age += dt;
-      if (this.ripples[i].age >= this.ripples[i].life) this.ripples.splice(i, 1);
+      if (this.ripples[i].age >= this.ripples[i].life)
+        this.ripples.splice(i, 1);
     }
     if (
       stroked &&
@@ -366,6 +399,98 @@ export class Creature {
         3 / DISTURB_RECOVER,
         dt,
       );
+    }
+    // FX-03: stretch along stroke motion while valid; spring rebound after leave (afterglow stays on enjoyment).
+    let strokeDx = 0;
+    let strokeDy = 0;
+    if (s.seen && this.hasPrevLook) {
+      strokeDx = (this.lookX - this.prevLookX) * this.aspectX;
+      strokeDy = (this.lookY - this.prevLookY) * this.aspectY;
+    }
+    // Integrate ~0.14s of look-delta so slow/noisy strokes keep a readable axis.
+    const accDecay = Math.exp(-dt / 0.14);
+    this.strokeAccX = this.strokeAccX * accDecay + strokeDx;
+    this.strokeAccY = this.strokeAccY * accDecay + strokeDy;
+    const strokeLen = Math.hypot(this.strokeAccX, this.strokeAccY);
+    if (stroked && strokeLen > 1e-4) {
+      let ux = this.strokeAccX / strokeLen;
+      let uy = this.strokeAccY / strokeLen;
+      const absAccX = Math.abs(this.strokeAccX);
+      const absAccY = Math.abs(this.strokeAccY);
+      // Snap to the dominant screen axis; hysteresis keeps a clear H/V stroke locked.
+      if (this.stretchAxis === 'h' && absAccY <= absAccX * STRETCH_AXIS_LOCK) {
+        ux = ux < 0 ? -1 : 1;
+        uy = 0;
+      } else if (
+        this.stretchAxis === 'v' &&
+        absAccX <= absAccY * STRETCH_AXIS_LOCK
+      ) {
+        ux = 0;
+        uy = uy < 0 ? -1 : 1;
+      } else if (absAccX > absAccY * STRETCH_AXIS_LOCK) {
+        this.stretchAxis = 'h';
+        ux = ux < 0 ? -1 : 1;
+        uy = 0;
+      } else if (absAccY > absAccX * STRETCH_AXIS_LOCK) {
+        this.stretchAxis = 'v';
+        ux = 0;
+        uy = uy < 0 ? -1 : 1;
+      } else {
+        this.stretchAxis = '';
+      }
+      const curAmp = this.stretchAmp();
+      if (curAmp > 1e-4) {
+        const curUx = this.stretchX / curAmp;
+        const curUy = this.stretchY / curAmp;
+        // Same axis on 180° reverse — avoid collapsing amp on oscillating strokes.
+        if (ux * curUx + uy * curUy < 0) {
+          ux = -ux;
+          uy = -uy;
+        }
+      }
+      const targetX = clamp(ux * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
+      const targetY = clamp(uy * STRETCH_GAIN_Y, -STRETCH_MAX, STRETCH_MAX);
+      this.stretchX = ease(this.stretchX, targetX, STRETCH_RISE, dt);
+      this.stretchY = ease(this.stretchY, targetY, STRETCH_RISE, dt);
+      this.stretchVx = 0;
+      this.stretchVy = 0;
+    } else if (stroked) {
+      // Valid contact without motion: hold pose; rebound only after leave.
+      this.stretchVx = 0;
+      this.stretchVy = 0;
+    } else {
+      this.strokeAccX = 0;
+      this.strokeAccY = 0;
+      this.stretchAxis = '';
+      // ω ≈ 2π / rebound; ζ < 1 → short overshoot then settle inside the envelope.
+      const omega = (Math.PI * 2) / STRETCH_REBOUND;
+      const k = omega * omega;
+      const damp = 2 * STRETCH_DAMPING * omega;
+      this.stretchVx += (-k * this.stretchX - damp * this.stretchVx) * dt;
+      this.stretchVy += (-k * this.stretchY - damp * this.stretchVy) * dt;
+      this.stretchX = clamp(
+        this.stretchX + this.stretchVx * dt,
+        -STRETCH_MAX,
+        STRETCH_MAX,
+      );
+      this.stretchY = clamp(
+        this.stretchY + this.stretchVy * dt,
+        -STRETCH_MAX,
+        STRETCH_MAX,
+      );
+      if (this.stretchAmp() < 1e-4) {
+        this.stretchX = 0;
+        this.stretchY = 0;
+        this.stretchVx = 0;
+        this.stretchVy = 0;
+      }
+    }
+    if (s.seen) {
+      this.prevLookX = this.lookX;
+      this.prevLookY = this.lookY;
+      this.hasPrevLook = true;
+    } else {
+      this.hasPrevLook = false;
     }
     const targetPeriod =
       this.alarm > 0.2
@@ -488,6 +613,9 @@ export class Creature {
       y: +this.y.toFixed(3),
       ripples: this.ripples.length,
       disturb: +this.disturbIntensity.toFixed(3),
+      stretchX: +this.stretchX.toFixed(3),
+      stretchY: +this.stretchY.toFixed(3),
+      stretch: +this.stretchAmp().toFixed(3),
     };
   }
 }
