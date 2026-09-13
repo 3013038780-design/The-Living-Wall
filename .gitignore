@@ -43,3 +43,6 @@ next-env.d.ts
 
 /public/mediapipe/
 /public/models/
+
+# Personal apprentice learning notes (local only; never commit)
+/personal-learning/
