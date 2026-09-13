@@ -29,7 +29,7 @@ export type Ripple = {
 export const RIPPLE_MAX = 3;
 export const RIPPLE_LIFE = 0.9;
 export const RIPPLE_SPAWN_GAP = 0.3;
-export const RIPPLE_AMP = 0.1;
+export const RIPPLE_AMP = 0.18;
 /** Aspect-corrected units per second; body radius is ~0.165 so a wave crosses the torso in ~0.5s. */
 export const RIPPLE_SPEED = 0.32;
 export type Signal = {
