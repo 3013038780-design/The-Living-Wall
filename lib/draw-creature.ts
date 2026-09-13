@@ -1,9 +1,8 @@
-import {
-  Creature,
-  ease,
-  RIPPLE_SPEED,
-  DISTURB_NEAR_AMP,
-} from './creature';
+import { Creature, ease, RIPPLE_SPEED, DISTURB_NEAR_AMP } from './creature';
+/** Rest pose is squat (~0.82 Y) and enjoyment facing often adds X; boost world-Y. */
+const STRETCH_VISUAL_Y = 0.75;
+const STRETCH_SQUASH = 0.5;
+const STRETCH_SQUASH_Y = 0.75;
 export class CreatureRenderer {
   particles = Array.from({ length: 210 }, (_, i) => ({
     i,
@@ -114,11 +113,16 @@ export class CreatureRenderer {
         const along = qx * lux + qy * luy;
         const ax = qx - lux * along;
         const ay = qy - luy * along;
-        // Elongate along stroke + mild perpendicular squash so H vs V reads clearly.
-        const squash = stretchAmp * 0.5;
-        qx = lux * along * (1 + stretchAmp) + ax * (1 - squash);
-        qy = luy * along * (1 + stretchAmp) + ay * (1 - squash);
-        stretchBoost = stretchAmp;
+        // Extra world-Y elongate+squash so vertical reads taller/narrower, not just less-wide.
+        const yAmt = Math.abs(wuy);
+        const elongate = stretchAmp * (1 + STRETCH_VISUAL_Y * yAmt);
+        const squash = Math.min(
+          0.38,
+          stretchAmp * (STRETCH_SQUASH + STRETCH_SQUASH_Y * yAmt),
+        );
+        qx = lux * along * (1 + elongate) + ax * (1 - squash);
+        qy = luy * along * (1 + elongate) + ay * (1 - squash);
+        stretchBoost = elongate;
       }
       // World-space sample shared by FX-01 ripples and FX-02 local disturbance.
       const wx = cx + qx * cos - qy * sin;
@@ -211,10 +215,7 @@ export class CreatureRenderer {
         1,
         alpha *
           (0.46 + wave * 0.54) *
-          (1 +
-            rippleBoost * 1.4 +
-            disturbBoost * 0.55 +
-            stretchBoost * 0.5),
+          (1 + rippleBoost * 1.4 + disturbBoost * 0.55 + stretchBoost * 0.5),
       );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
