@@ -1,4 +1,9 @@
-import { Creature, ease, RIPPLE_SPEED } from './creature';
+import {
+  Creature,
+  ease,
+  RIPPLE_SPEED,
+  DISTURB_NEAR_AMP,
+} from './creature';
 export class CreatureRenderer {
   particles = Array.from({ length: 210 }, (_, i) => ({
     i,
@@ -96,11 +101,38 @@ export class CreatureRenderer {
         qx += Math.cos(localTouch) * base * c.enjoyment * facing * 0.2;
         qy += Math.sin(localTouch) * base * c.enjoyment * facing * 0.2;
       }
+      // World-space sample shared by FX-01 ripples and FX-02 local disturbance.
+      const wx = cx + qx * cos - qy * sin;
+      const wy = cy + qx * sin + qy * cos;
+      let disturbBoost = 0;
+      if (c.disturbIntensity > 0.001 && !isScout) {
+        const weight = c.disturbWeight(wx / w, wy / h);
+        if (weight > 0.001) {
+          disturbBoost = weight;
+          const dx = wx - c.disturbX * w;
+          const dy = wy - c.disturbY * h;
+          const distPx = Math.hypot(dx, dy);
+          // Near ≫ far via weight; shimmer stays a fraction so springs settle after leave.
+          const push = base * DISTURB_NEAR_AMP * weight;
+          const shim = Math.sin(t * 11 + phase * 3) * 0.28;
+          if (distPx > 0.5) {
+            const ux = dx / distPx;
+            const uy = dy / distPx;
+            // Perpendicular shimmer in world space, then convert to body-local.
+            const pwx = ux * push - uy * push * shim;
+            const pwy = uy * push + ux * push * shim;
+            qx += pwx * cos + pwy * sin;
+            qy += -pwx * sin + pwy * cos;
+          } else {
+            const br = Math.hypot(qx, qy) || 1;
+            qx += (qx / br) * push;
+            qy += (qy / br) * push * (1 + shim);
+          }
+        }
+      }
       let rippleBoost = 0;
       if (c.ripples.length && !isScout) {
         // World-space sample before spring so the wave rides the body, not the cursor alone.
-        const wx = cx + qx * cos - qy * sin;
-        const wy = cy + qx * sin + qy * cos;
         for (const ripple of c.ripples) {
           const rx = ripple.x * w;
           const ry = ripple.y * h;
@@ -158,7 +190,9 @@ export class CreatureRenderer {
       const wave = (1 - Math.cos(c.breathPhase - (isCore ? 0 : 0.55))) / 2;
       const luminous = Math.min(
         1,
-        alpha * (0.46 + wave * 0.54) * (1 + rippleBoost * 1.4),
+        alpha *
+          (0.46 + wave * 0.54) *
+          (1 + rippleBoost * 1.4 + disturbBoost * 0.55),
       );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;

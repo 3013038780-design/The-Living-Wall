@@ -32,6 +32,25 @@ export const RIPPLE_SPAWN_GAP = 0.3;
 export const RIPPLE_AMP = 0.1;
 /** Aspect-corrected units per second; body radius is ~0.165 so a wave crosses the torso in ~0.5s. */
 export const RIPPLE_SPEED = 0.32;
+/** FX-02 local fragment disturbance tuning (documented in PR / PRD). */
+export const DISTURB_RADIUS = 0.11;
+/** Peak displacement scale at contact (renderer multiplies by body base). Near ≫ far via falloff. */
+export const DISTURB_NEAR_AMP = 0.09;
+/** Gaussian sharpness: weight ≈ e(-(d/R)^2 * k). At R ≈ 0.11 of near; beyond body weaker. */
+export const DISTURB_FALLOFF = 2.4;
+/** Ease rate while stroking toward full intensity. */
+export const DISTURB_RISE = 7;
+/** Seconds to mostly settle after leaving (~e^{-3} residual ≈ 5%). */
+export const DISTURB_RECOVER = 0.7;
+/** Radial falloff 0..1 from aspect-corrected distance to contact. */
+export function disturbFalloff(
+  dist: number,
+  radius = DISTURB_RADIUS,
+  falloff = DISTURB_FALLOFF,
+) {
+  const t = dist / Math.max(radius, 1e-6);
+  return Math.exp(-t * t * falloff);
+}
 export type Signal = {
   x: number;
   y: number;
@@ -132,6 +151,11 @@ export class Creature {
   heading = 0;
   ripples: Ripple[] = [];
   private rippleCooldown = 0;
+  /** Latest valid-stroke contact (normalized). */
+  disturbX = 0.5;
+  disturbY = 0.53;
+  /** 0..1 envelope; rises while stroked, settles after leave. */
+  disturbIntensity = 0;
   private wasPresent = false;
   private calm = 0;
   private lost = false;
@@ -141,6 +165,14 @@ export class Creature {
     const unit = Math.min(w, h);
     this.aspectX = w / unit;
     this.aspectY = h / unit;
+  }
+  /** Aspect-corrected weight at a normalized point: intensity × near-strong / far-weak falloff. */
+  disturbWeight(px: number, py: number) {
+    const dist = Math.hypot(
+      (px - this.disturbX) * this.aspectX,
+      (py - this.disturbY) * this.aspectY,
+    );
+    return this.disturbIntensity * disturbFalloff(dist);
   }
   private enter(phase: Phase) {
     if (phase !== this.phase) {
@@ -322,6 +354,19 @@ export class Creature {
       });
       this.rippleCooldown = RIPPLE_SPAWN_GAP;
     }
+    // FX-02: same stroked gate as ripples; intensity settles after leave without residual shake.
+    if (stroked) {
+      this.disturbX = this.lookX;
+      this.disturbY = this.lookY;
+      this.disturbIntensity = ease(this.disturbIntensity, 1, DISTURB_RISE, dt);
+    } else {
+      this.disturbIntensity = ease(
+        this.disturbIntensity,
+        0,
+        3 / DISTURB_RECOVER,
+        dt,
+      );
+    }
     const targetPeriod =
       this.alarm > 0.2
         ? 2.1
@@ -442,6 +487,7 @@ export class Creature {
       x: +this.x.toFixed(3),
       y: +this.y.toFixed(3),
       ripples: this.ripples.length,
+      disturb: +this.disturbIntensity.toFixed(3),
     };
   }
 }
