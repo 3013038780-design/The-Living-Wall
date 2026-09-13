@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Creature, type Signal, type Phase } from '../lib/creature.ts';
+import {
+  Creature,
+  disturbFalloff,
+  DISTURB_RADIUS,
+  type Signal,
+  type Phase,
+} from '../lib/creature.ts';
 const gentle: Signal = { x: 0.57, y: 0.53, speed: 0.16, seen: true };
 function run(c: Creature, seconds: number, s: Signal, phases?: Set<Phase>) {
   for (let i = 0; i < Math.round(seconds * 60); i++) {
@@ -223,4 +229,72 @@ test('startle clears new ripple spawning without freezing breath recovery path',
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
   assert.ok(c.ripples.length <= before);
   assert.ok(c.breathPeriod > 0);
+});
+
+
+test('gentle strokes raise local disturbance near contact more than far', () => {
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.enjoyment > 0.7);
+  assert.ok(c.disturbIntensity > 0.7);
+  const near = c.disturbWeight(c.disturbX, c.disturbY);
+  const mid = c.disturbWeight(c.disturbX + 0.06 / c.aspectX, c.disturbY);
+  const far = c.disturbWeight(c.disturbX + 0.22 / c.aspectX, c.disturbY);
+  assert.ok(near > mid);
+  assert.ok(mid > far);
+  assert.ok(near > far * 4);
+});
+
+test('after leaving, local disturbance settles without long residual shake', () => {
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.disturbIntensity > 0.7);
+  run(c, 1.0, { ...gentle, seen: false, speed: 0 });
+  assert.ok(c.disturbIntensity < 0.08);
+  run(c, 0.5, { ...gentle, seen: false, speed: 0 });
+  assert.ok(c.disturbIntensity < 0.02);
+});
+
+test('local disturbance coexists with ripples and stays bounded', () => {
+  const c = new Creature();
+  for (let i = 0; i < 900; i++) {
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+    assert.ok(c.ripples.length <= 3);
+    assert.ok(c.disturbIntensity <= 1);
+  }
+  assert.ok(c.ripples.length >= 1);
+  assert.ok(c.disturbIntensity > 0.7);
+  assert.ok(c.enjoyment > 0.7);
+});
+
+test('fast swipe does not drive local disturbance; startle still works', () => {
+  const swipe = new Creature();
+  for (let i = 0; i < 480; i++)
+    swipe.step(1 / 60, {
+      x: swipe.x + 0.12,
+      y: swipe.y,
+      speed: 1.2,
+      seen: true,
+    });
+  assert.ok(swipe.disturbIntensity < 0.05);
+  assert.equal(swipe.ripples.length, 0);
+
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.disturbIntensity > 0.7);
+  c.step(1 / 60, { x: c.x, y: c.y, speed: 5, seen: true });
+  assert.equal(c.phase, 'startle');
+  for (let i = 0; i < 60; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.disturbIntensity < 0.35);
+});
+
+test('disturbFalloff is near-strong and far-weak within the influence radius', () => {
+  assert.ok(disturbFalloff(0) > 0.99);
+  assert.ok(disturbFalloff(DISTURB_RADIUS * 0.5) < disturbFalloff(0));
+  assert.ok(disturbFalloff(DISTURB_RADIUS) < disturbFalloff(DISTURB_RADIUS * 0.5));
+  assert.ok(disturbFalloff(DISTURB_RADIUS * 2) < 0.05);
 });
