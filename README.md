@@ -42,8 +42,11 @@ npm run dev -- --port 3017
 ```bash
 npm test
 npm run typecheck
+npm run lint
 npm run build
 ```
+
+`components/ui/**`（shadcn 生成组件）在 oxlint 中刻意豁免，说明见 [`docs/lint.md`](./docs/lint.md)。
 
 ## 算法与架构
 
