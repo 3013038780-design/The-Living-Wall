@@ -86,6 +86,7 @@ MediaPipe 是预训练的手部视觉模型；碎光的行为是可测试的规�
 
 ## 项目说明
 
+- [学习笔记 · Git 工作流](docs/learning/01-git-workflow.md)
 - [产品需求文档（PRD）](docs/PRD.md)
 - [协作约定（AGENTS）](AGENTS.md)
 - [呈现与需求](docs/03-呼吸与陪伴.md)
