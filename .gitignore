@@ -46,3 +46,5 @@ next-env.d.ts
 
 # Personal apprentice learning notes (local only; never commit)
 /personal-learning/
+# Alias path used by apprentice mentor (local only)
+/private-learning/
