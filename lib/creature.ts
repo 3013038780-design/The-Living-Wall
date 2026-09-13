@@ -52,12 +52,12 @@ export function disturbFalloff(
   return Math.exp(-t * t * falloff);
 }
 /** FX-03 directional stretch / rebound tuning (documented in PR / PRD). */
-/** Medium peak elongation along stroke direction (fraction of body base). */
-export const STRETCH_GAIN = 0.12;
+/** Peak elongation along stroke direction (fraction of body base); raised for clear H/V. */
+export const STRETCH_GAIN = 0.2;
 /** Hard clamp on |stretch| components — keeps body envelope conservative. */
-export const STRETCH_MAX = 0.16;
-/** Ease rate toward stroke-aligned target while stroking. */
-export const STRETCH_RISE = 6;
+export const STRETCH_MAX = 0.24;
+/** Ease rate toward stroke-aligned target while stroking (responsive for slow strokes). */
+export const STRETCH_RISE = 10;
 /** Rebound duration target (~slightly underdamped spring period), mid of 0.3–0.8s. */
 export const STRETCH_REBOUND = 0.55;
 /** Underdamped spring ζ so stop shows a short rebound overshoot then settles. */
@@ -172,6 +172,9 @@ export class Creature {
   stretchY = 0;
   private stretchVx = 0;
   private stretchVy = 0;
+  /** Short-window look-delta accumulator — stabilizes direction on slow strokes. */
+  private strokeAccX = 0;
+  private strokeAccY = 0;
   private prevLookX = 0.5;
   private prevLookY = 0.53;
   private hasPrevLook = false;
@@ -397,10 +400,24 @@ export class Creature {
       strokeDx = (this.lookX - this.prevLookX) * this.aspectX;
       strokeDy = (this.lookY - this.prevLookY) * this.aspectY;
     }
-    const strokeLen = Math.hypot(strokeDx, strokeDy);
-    if (stroked && strokeLen > 1e-5) {
-      const ux = strokeDx / strokeLen;
-      const uy = strokeDy / strokeLen;
+    // Integrate ~0.14s of look-delta so slow/noisy strokes keep a readable axis.
+    const accDecay = Math.exp(-dt / 0.14);
+    this.strokeAccX = this.strokeAccX * accDecay + strokeDx;
+    this.strokeAccY = this.strokeAccY * accDecay + strokeDy;
+    const strokeLen = Math.hypot(this.strokeAccX, this.strokeAccY);
+    if (stroked && strokeLen > 1e-4) {
+      let ux = this.strokeAccX / strokeLen;
+      let uy = this.strokeAccY / strokeLen;
+      const curAmp = this.stretchAmp();
+      if (curAmp > 1e-4) {
+        const curUx = this.stretchX / curAmp;
+        const curUy = this.stretchY / curAmp;
+        // Same axis on 180° reverse — avoid collapsing amp on oscillating strokes.
+        if (ux * curUx + uy * curUy < 0) {
+          ux = -ux;
+          uy = -uy;
+        }
+      }
       const targetX = clamp(ux * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
       const targetY = clamp(uy * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
       this.stretchX = ease(this.stretchX, targetX, STRETCH_RISE, dt);
@@ -412,6 +429,8 @@ export class Creature {
       this.stretchVx = 0;
       this.stretchVy = 0;
     } else {
+      this.strokeAccX = 0;
+      this.strokeAccY = 0;
       // ω ≈ 2π / rebound; ζ < 1 → short overshoot then settle inside the envelope.
       const omega = (Math.PI * 2) / STRETCH_REBOUND;
       const k = omega * omega;
