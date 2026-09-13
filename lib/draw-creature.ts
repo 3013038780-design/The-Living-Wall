@@ -101,6 +101,22 @@ export class CreatureRenderer {
         qx += Math.cos(localTouch) * base * c.enjoyment * facing * 0.2;
         qy += Math.sin(localTouch) * base * c.enjoyment * facing * 0.2;
       }
+      // FX-03: anisotropic stretch along stroke axis (aspect-corrected → body-local).
+      let stretchBoost = 0;
+      const stretchAmp = c.stretchAmp();
+      if (stretchAmp > 0.001 && !isScout) {
+        // World/aspect unit direction of stretch.
+        const wux = c.stretchX / stretchAmp;
+        const wuy = c.stretchY / stretchAmp;
+        // Rotate world direction into body-local space (inverse of heading).
+        const lux = wux * cos + wuy * sin;
+        const luy = -wux * sin + wuy * cos;
+        const along = qx * lux + qy * luy;
+        // Elongate along stroke; clamp via STRETCH_MAX keeps envelope conservative.
+        qx += lux * along * stretchAmp;
+        qy += luy * along * stretchAmp;
+        stretchBoost = stretchAmp;
+      }
       // World-space sample shared by FX-01 ripples and FX-02 local disturbance.
       const wx = cx + qx * cos - qy * sin;
       const wy = cy + qx * sin + qy * cos;
@@ -192,7 +208,10 @@ export class CreatureRenderer {
         1,
         alpha *
           (0.46 + wave * 0.54) *
-          (1 + rippleBoost * 1.4 + disturbBoost * 0.55),
+          (1 +
+            rippleBoost * 1.4 +
+            disturbBoost * 0.55 +
+            stretchBoost * 0.35),
       );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
