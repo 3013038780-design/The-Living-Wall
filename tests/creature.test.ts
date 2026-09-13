@@ -177,3 +177,50 @@ test('a sudden scare interrupts pleasure promptly', () => {
   run(c, 0.6, { ...gentle, seen: false });
   assert.ok(c.enjoyment < 0.1);
 });
+
+test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => {
+  const stroked = new Creature();
+  for (let i = 0; i < 480; i++)
+    stroked.step(1 / 60, { x: stroked.x + 0.065, y: stroked.y, speed: 0.15, seen: true });
+  assert.ok(stroked.enjoyment > 0.7);
+  assert.ok(stroked.ripples.length >= 1);
+  assert.ok(stroked.ripples.length <= 3);
+  const ages = stroked.ripples.map((r) => r.age);
+  run(stroked, 1.2, { ...gentle, seen: false, speed: 0 });
+  assert.equal(stroked.ripples.length, 0);
+  assert.ok(ages.every((a) => a >= 0));
+
+  const swipe = new Creature();
+  for (let i = 0; i < 480; i++)
+    swipe.step(1 / 60, { x: swipe.x + 0.12, y: swipe.y, speed: 1.2, seen: true });
+  assert.equal(swipe.ripples.length, 0);
+  assert.ok(swipe.enjoyment < 0.2);
+
+  const idle = new Creature();
+  run(idle, 8, { ...gentle, speed: 0 });
+  assert.equal(idle.ripples.length, 0);
+});
+
+test('continuous stroking keeps concurrent ripples within the cap', () => {
+  const c = new Creature();
+  for (let i = 0; i < 900; i++) {
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+    assert.ok(c.ripples.length <= 3);
+  }
+  assert.ok(c.ripples.length >= 2);
+  assert.ok(c.enjoyment > 0.7);
+});
+
+test('startle clears new ripple spawning without freezing breath recovery path', () => {
+  const c = new Creature();
+  for (let i = 0; i < 480; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.ripples.length > 0);
+  c.step(1 / 60, { x: c.x, y: c.y, speed: 5, seen: true });
+  assert.equal(c.phase, 'startle');
+  const before = c.ripples.length;
+  for (let i = 0; i < 60; i++)
+    c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
+  assert.ok(c.ripples.length <= before);
+  assert.ok(c.breathPeriod > 0);
+});

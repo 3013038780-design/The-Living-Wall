@@ -1,4 +1,4 @@
-import { Creature, ease } from './creature';
+import { Creature, ease, RIPPLE_SPEED } from './creature';
 export class CreatureRenderer {
   particles = Array.from({ length: 210 }, (_, i) => ({
     i,
@@ -96,6 +96,35 @@ export class CreatureRenderer {
         qx += Math.cos(localTouch) * base * c.enjoyment * facing * 0.2;
         qy += Math.sin(localTouch) * base * c.enjoyment * facing * 0.2;
       }
+      let rippleBoost = 0;
+      if (c.ripples.length && !isScout) {
+        // World-space sample before spring so the wave rides the body, not the cursor alone.
+        const wx = cx + qx * cos - qy * sin;
+        const wy = cy + qx * sin + qy * cos;
+        for (const ripple of c.ripples) {
+          const rx = ripple.x * w;
+          const ry = ripple.y * h;
+          const dx = wx - rx;
+          const dy = wy - ry;
+          const dist = Math.hypot(dx, dy);
+          const front = ripple.age * RIPPLE_SPEED * unit;
+          const band = base * 0.22;
+          const envelope = Math.exp(
+            -((dist - front) * (dist - front)) / (2 * band * band),
+          );
+          const fade = Math.max(0, 1 - ripple.age / ripple.life);
+          const strength = ripple.amp * envelope * fade;
+          rippleBoost = Math.max(rippleBoost, strength);
+          if (dist > 0.5 && strength > 0.001) {
+            const push = base * strength;
+            // Convert world radial push back into local body space.
+            const pwx = (dx / dist) * push;
+            const pwy = (dy / dist) * push;
+            qx += pwx * cos + pwy * sin;
+            qy += -pwx * sin + pwy * cos;
+          }
+        }
+      }
       const tx = cx + qx * cos - qy * sin,
         ty = cy + qx * sin + qy * cos;
       if (!p.ready) {
@@ -127,7 +156,10 @@ export class CreatureRenderer {
             : heading * 0.22 + Math.sin(phase + t * 0.17) * 0.6,
       );
       const wave = (1 - Math.cos(c.breathPhase - (isCore ? 0 : 0.55))) / 2;
-      const luminous = alpha * (0.46 + wave * 0.54);
+      const luminous = Math.min(
+        1,
+        alpha * (0.46 + wave * 0.54) * (1 + rippleBoost * 1.4),
+      );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
       ctx.fillStyle = `hsla(${hue},${saturation}%,${isCore ? 96 : 88 - c.maturity * 16}%,${luminous})`;
