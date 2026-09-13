@@ -52,8 +52,10 @@ export function disturbFalloff(
   return Math.exp(-t * t * falloff);
 }
 /** FX-03 directional stretch / rebound tuning (documented in PR / PRD). */
-/** Peak elongation along stroke direction (fraction of body base); raised for clear H/V. */
+/** Peak elongation along a horizontal stroke (fraction of body base). */
 export const STRETCH_GAIN = 0.2;
+/** Vertical target is a bit higher so Y can reach the clamp on a locked V stroke. */
+export const STRETCH_GAIN_Y = 0.24;
 /** Hard clamp on |stretch| components — keeps body envelope conservative. */
 export const STRETCH_MAX = 0.24;
 /** Ease rate toward stroke-aligned target while stroking (responsive for slow strokes). */
@@ -62,6 +64,8 @@ export const STRETCH_RISE = 10;
 export const STRETCH_REBOUND = 0.55;
 /** Underdamped spring ζ so stop shows a short rebound overshoot then settles. */
 export const STRETCH_DAMPING = 0.78;
+/** Lock to H or V when |major look-delta| exceeds this times |minor|. */
+export const STRETCH_AXIS_LOCK = 1.25;
 export type Signal = {
   x: number;
   y: number;
@@ -175,6 +179,8 @@ export class Creature {
   /** Short-window look-delta accumulator — stabilizes direction on slow strokes. */
   private strokeAccX = 0;
   private strokeAccY = 0;
+  /** Latched dominant axis so jitter does not pull a clear H/V stroke diagonal. */
+  private stretchAxis: '' | 'h' | 'v' = '';
   private prevLookX = 0.5;
   private prevLookY = 0.53;
   private hasPrevLook = false;
@@ -364,7 +370,8 @@ export class Creature {
     this.rippleCooldown = Math.max(0, this.rippleCooldown - dt);
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       this.ripples[i].age += dt;
-      if (this.ripples[i].age >= this.ripples[i].life) this.ripples.splice(i, 1);
+      if (this.ripples[i].age >= this.ripples[i].life)
+        this.ripples.splice(i, 1);
     }
     if (
       stroked &&
@@ -408,6 +415,29 @@ export class Creature {
     if (stroked && strokeLen > 1e-4) {
       let ux = this.strokeAccX / strokeLen;
       let uy = this.strokeAccY / strokeLen;
+      const absAccX = Math.abs(this.strokeAccX);
+      const absAccY = Math.abs(this.strokeAccY);
+      // Snap to the dominant screen axis; hysteresis keeps a clear H/V stroke locked.
+      if (this.stretchAxis === 'h' && absAccY <= absAccX * STRETCH_AXIS_LOCK) {
+        ux = ux < 0 ? -1 : 1;
+        uy = 0;
+      } else if (
+        this.stretchAxis === 'v' &&
+        absAccX <= absAccY * STRETCH_AXIS_LOCK
+      ) {
+        ux = 0;
+        uy = uy < 0 ? -1 : 1;
+      } else if (absAccX > absAccY * STRETCH_AXIS_LOCK) {
+        this.stretchAxis = 'h';
+        ux = ux < 0 ? -1 : 1;
+        uy = 0;
+      } else if (absAccY > absAccX * STRETCH_AXIS_LOCK) {
+        this.stretchAxis = 'v';
+        ux = 0;
+        uy = uy < 0 ? -1 : 1;
+      } else {
+        this.stretchAxis = '';
+      }
       const curAmp = this.stretchAmp();
       if (curAmp > 1e-4) {
         const curUx = this.stretchX / curAmp;
@@ -419,7 +449,7 @@ export class Creature {
         }
       }
       const targetX = clamp(ux * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
-      const targetY = clamp(uy * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
+      const targetY = clamp(uy * STRETCH_GAIN_Y, -STRETCH_MAX, STRETCH_MAX);
       this.stretchX = ease(this.stretchX, targetX, STRETCH_RISE, dt);
       this.stretchY = ease(this.stretchY, targetY, STRETCH_RISE, dt);
       this.stretchVx = 0;
@@ -431,6 +461,7 @@ export class Creature {
     } else {
       this.strokeAccX = 0;
       this.strokeAccY = 0;
+      this.stretchAxis = '';
       // ω ≈ 2π / rebound; ζ < 1 → short overshoot then settle inside the envelope.
       const omega = (Math.PI * 2) / STRETCH_REBOUND;
       const k = omega * omega;

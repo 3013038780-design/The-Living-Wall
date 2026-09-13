@@ -4,6 +4,8 @@ import {
   Creature,
   disturbFalloff,
   DISTURB_RADIUS,
+  STRETCH_GAIN,
+  STRETCH_GAIN_Y,
   STRETCH_MAX,
   STRETCH_REBOUND,
   type Signal,
@@ -189,7 +191,12 @@ void test('a sudden scare interrupts pleasure promptly', () => {
 test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => {
   const stroked = new Creature();
   for (let i = 0; i < 480; i++)
-    stroked.step(1 / 60, { x: stroked.x + 0.065, y: stroked.y, speed: 0.15, seen: true });
+    stroked.step(1 / 60, {
+      x: stroked.x + 0.065,
+      y: stroked.y,
+      speed: 0.15,
+      seen: true,
+    });
   assert.ok(stroked.enjoyment > 0.7);
   assert.ok(stroked.ripples.length >= 1);
   assert.ok(stroked.ripples.length <= 3);
@@ -200,7 +207,12 @@ test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => 
 
   const swipe = new Creature();
   for (let i = 0; i < 480; i++)
-    swipe.step(1 / 60, { x: swipe.x + 0.12, y: swipe.y, speed: 1.2, seen: true });
+    swipe.step(1 / 60, {
+      x: swipe.x + 0.12,
+      y: swipe.y,
+      speed: 1.2,
+      seen: true,
+    });
   assert.equal(swipe.ripples.length, 0);
   assert.ok(swipe.enjoyment < 0.2);
 
@@ -232,7 +244,6 @@ test('startle clears new ripple spawning without freezing breath recovery path',
   assert.ok(c.ripples.length <= before);
   assert.ok(c.breathPeriod > 0);
 });
-
 
 test('gentle strokes raise local disturbance near contact more than far', () => {
   const c = new Creature();
@@ -297,7 +308,9 @@ test('fast swipe does not drive local disturbance; startle still works', () => {
 test('disturbFalloff is near-strong and far-weak within the influence radius', () => {
   assert.ok(disturbFalloff(0) > 0.99);
   assert.ok(disturbFalloff(DISTURB_RADIUS * 0.5) < disturbFalloff(0));
-  assert.ok(disturbFalloff(DISTURB_RADIUS) < disturbFalloff(DISTURB_RADIUS * 0.5));
+  assert.ok(
+    disturbFalloff(DISTURB_RADIUS) < disturbFalloff(DISTURB_RADIUS * 0.5),
+  );
   assert.ok(disturbFalloff(DISTURB_RADIUS * 2) < 0.05);
 });
 
@@ -326,7 +339,8 @@ test('horizontal vs vertical strokes stretch in distinguishable directions', () 
     }
   }
   assert.ok(lateSX > 0.1);
-  assert.ok(lateSX > lateSY * 3);
+  assert.ok(lateSX > lateSY * 4);
+  assert.ok(lateSY < 0.03);
   assert.ok(horiz.stretchAmp() <= STRETCH_MAX + 1e-6);
 
   const vert = new Creature();
@@ -350,9 +364,13 @@ test('horizontal vs vertical strokes stretch in distinguishable directions', () 
     }
   }
   assert.ok(lateVY > 0.1);
-  assert.ok(lateVY > lateVX * 3);
+  assert.ok(lateVY > lateVX * 4);
+  assert.ok(lateVX < 0.03);
   assert.ok(lateSX > lateVX);
   assert.ok(lateVY > lateSY);
+  // Locked peaks should sit near the per-axis gains (Y uses the higher gain).
+  assert.ok(lateSX > STRETCH_GAIN * 0.7);
+  assert.ok(lateVY > STRETCH_GAIN_Y * 0.7);
 });
 
 test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
