@@ -8,7 +8,7 @@ function run(c: Creature, seconds: number, s: Signal, phases?: Set<Phase>) {
     phases?.add(c.phase);
   }
 }
-test('first encounter observes and probes before approaching and bonding', () => {
+void test('first encounter observes and probes before approaching and bonding', () => {
   const c = new Creature(),
     phases = new Set<Phase>();
   run(c, 0.8, gentle, phases);
@@ -19,7 +19,7 @@ test('first encounter observes and probes before approaching and bonding', () =>
     assert.ok(phases.has(p), p);
   assert.equal(c.frightCount, 0);
 });
-test('short occlusion holds engagement; a departure searches then rests', () => {
+void test('short occlusion holds engagement; a departure searches then rests', () => {
   const c = new Creature();
   run(c, 15, gentle);
   const before = c.phase;
@@ -32,7 +32,7 @@ test('short occlusion holds engagement; a departure searches then rests', () => 
   assert.equal(c.phase, 'alone');
   assert.ok(c.presence < 0.02);
 });
-test('repeated shocks accumulate caution and extend recovery', () => {
+void test('repeated shocks accumulate caution and extend recovery', () => {
   const fresh = new Creature(),
     repeated = new Creature();
   for (const c of [fresh, repeated]) {
@@ -55,7 +55,7 @@ test('repeated shocks accumulate caution and extend recovery', () => {
   }
   assert.ok(settle(repeated) > settle(fresh));
 });
-test('standing still invites; a gentle answer ends invitation', () => {
+void test('standing still invites; a gentle answer ends invitation', () => {
   const c = new Creature();
   run(c, 16, gentle);
   run(c, 7, { ...gentle, speed: 0 });
@@ -64,7 +64,7 @@ test('standing still invites; a gentle answer ends invitation', () => {
   assert.ok(['approach', 'bond'].includes(c.phase));
   assert.ok(c.inviteCooldown > 0);
 });
-test('new encounter inherits trust but still observes before moving', () => {
+void test('new encounter inherits trust but still observes before moving', () => {
   const c = new Creature();
   run(c, 20, gentle);
   const trust = c.trust;
@@ -74,7 +74,7 @@ test('new encounter inherits trust but still observes before moving', () => {
   assert.ok(c.trust > trust - 0.02);
   assert.equal(c.encounterCount, 2);
 });
-test('recovery geometry stays continuous at all phase boundaries', () => {
+void test('recovery geometry stays continuous at all phase boundaries', () => {
   const c = new Creature();
   run(c, 1, gentle);
   c.step(1 / 60, { x: c.x, y: c.y, speed: 5, seen: true });
@@ -87,7 +87,7 @@ test('recovery geometry stays continuous at all phase boundaries', () => {
   }
 });
 
-test('gentle body strokes bring pleasure with a lingering afterglow; idle cannot grow', () => {
+void test('gentle body strokes bring pleasure with a lingering afterglow; idle cannot grow', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -99,7 +99,7 @@ test('gentle body strokes bring pleasure with a lingering afterglow; idle cannot
   run(c, 30, { ...gentle, speed: 0 });
   assert.equal(c.care, care);
 });
-test('growth survives restore, is capped daily and never decays through absence', () => {
+void test('growth survives restore, is capped daily and never decays through absence', () => {
   const c = new Creature();
   c.restore({
     version: 1,
@@ -121,7 +121,7 @@ test('growth survives restore, is capped daily and never decays through absence'
   restored.restore({ version: 1, care: NaN, affection: 1, dailyCare: 0 });
   assert.equal(restored.care, 500);
 });
-test('breathing remains continuous and becomes slower with pleasure', () => {
+void test('breathing remains continuous and becomes slower with pleasure', () => {
   const c = new Creature();
   for (let i = 0; i < 600; i++) {
     const before = c.breathPhase;
@@ -132,7 +132,7 @@ test('breathing remains continuous and becomes slower with pleasure', () => {
   assert.ok(c.breathPeriod > 6);
 });
 
-test('fatigue causes sustained rest instead of rapidly toggling at the threshold', () => {
+void test('fatigue causes sustained rest instead of rapidly toggling at the threshold', () => {
   const c = new Creature();
   c.fatigue = 0.81;
   const stroke = () =>
@@ -145,7 +145,7 @@ test('fatigue causes sustained rest instead of rapidly toggling at the threshold
   for (let i = 0; i < 1100; i++) stroke();
   assert.equal(c.resting, false);
 });
-test('explicit hover can attract attention but cannot count as a wall stroke', () => {
+void test('explicit hover can attract attention but cannot count as a wall stroke', () => {
   const c = new Creature();
   for (let i = 0; i < 600; i++)
     c.step(1 / 60, {
@@ -168,7 +168,7 @@ test('explicit hover can attract attention but cannot count as a wall stroke', (
     });
   assert.ok(c.enjoyment > 0.7);
 });
-test('a sudden scare interrupts pleasure promptly', () => {
+void test('a sudden scare interrupts pleasure promptly', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });

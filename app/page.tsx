@@ -87,7 +87,10 @@ export default function Home() {
       if (saved) creature.current.restore(JSON.parse(saved));
     } catch {
       storageOK.current = false;
-      setMessage('成长暂时无法保存，仍可继续互动。');
+      // Defer so react-compiler does not flag sync setState in effect body.
+      queueMicrotask(() =>
+        setMessage('成长暂时无法保存，仍可继续互动。'),
+      );
     }
     creature.current.setDay(localDay());
     const save = () => {
@@ -111,7 +114,9 @@ export default function Home() {
     if (!ctx) {
       clearInterval(saver);
       window.removeEventListener('pagehide', save);
-      setMessage('此浏览器无法显示互动图形，请使用支持 Canvas 的浏览器。');
+      queueMicrotask(() =>
+        setMessage('此浏览器无法显示互动图形，请使用支持 Canvas 的浏览器。'),
+      );
       return;
     }
     let w = innerWidth,
@@ -378,9 +383,7 @@ export default function Home() {
         />
       )}
       {message && !projection && (
-        <div className="message" role="status">
-          {message}
-        </div>
+        <output className="message">{message}</output>
       )}
       {projection && (
         <button className="exit-projection" onClick={exitProjection}>
