@@ -137,7 +137,7 @@ export class CreatureRenderer {
           const distPx = Math.hypot(dx, dy);
           // Near ≫ far via weight; shimmer stays a fraction so springs settle after leave.
           const push = base * DISTURB_NEAR_AMP * weight;
-          const shim = Math.sin(t * 11 + phase * 3) * 0.28;
+          const shim = Math.sin(t * 5 + phase * 3) * 0.18;
           if (distPx > 0.5) {
             const ux = dx / distPx;
             const uy = dy / distPx;
@@ -215,7 +215,7 @@ export class CreatureRenderer {
         1,
         alpha *
           (0.46 + wave * 0.54) *
-          (1 + rippleBoost * 1.4 + disturbBoost * 0.55 + stretchBoost * 0.5),
+          (1 + rippleBoost * 0.9 + disturbBoost * 0.3 + stretchBoost * 0.25),
       );
       const saturation = isCore ? c.maturity * 15 : c.maturity * 85;
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
