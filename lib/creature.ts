@@ -51,6 +51,17 @@ export function disturbFalloff(
   const t = dist / Math.max(radius, 1e-6);
   return Math.exp(-t * t * falloff);
 }
+/** FX-03 directional stretch / rebound tuning (documented in PR / PRD). */
+/** Medium peak elongation along stroke direction (fraction of body base). */
+export const STRETCH_GAIN = 0.12;
+/** Hard clamp on |stretch| components — keeps body envelope conservative. */
+export const STRETCH_MAX = 0.16;
+/** Ease rate toward stroke-aligned target while stroking. */
+export const STRETCH_RISE = 6;
+/** Rebound duration target (~slightly underdamped spring period), mid of 0.3–0.8s. */
+export const STRETCH_REBOUND = 0.55;
+/** Underdamped spring ζ so stop shows a short rebound overshoot then settles. */
+export const STRETCH_DAMPING = 0.78;
 export type Signal = {
   x: number;
   y: number;
@@ -156,6 +167,14 @@ export class Creature {
   disturbY = 0.53;
   /** 0..1 envelope; rises while stroked, settles after leave. */
   disturbIntensity = 0;
+  /** FX-03: aspect-corrected stretch components along recent stroke direction. */
+  stretchX = 0;
+  stretchY = 0;
+  private stretchVx = 0;
+  private stretchVy = 0;
+  private prevLookX = 0.5;
+  private prevLookY = 0.53;
+  private hasPrevLook = false;
   private wasPresent = false;
   private calm = 0;
   private lost = false;
@@ -173,6 +192,10 @@ export class Creature {
       (py - this.disturbY) * this.aspectY,
     );
     return this.disturbIntensity * disturbFalloff(dist);
+  }
+  /** Signed stretch amplitude (aspect-corrected); used by renderer and tests. */
+  stretchAmp() {
+    return Math.hypot(this.stretchX, this.stretchY);
   }
   private enter(phase: Phase) {
     if (phase !== this.phase) {
@@ -367,6 +390,58 @@ export class Creature {
         dt,
       );
     }
+    // FX-03: stretch along stroke motion while valid; spring rebound after leave (afterglow stays on enjoyment).
+    let strokeDx = 0;
+    let strokeDy = 0;
+    if (s.seen && this.hasPrevLook) {
+      strokeDx = (this.lookX - this.prevLookX) * this.aspectX;
+      strokeDy = (this.lookY - this.prevLookY) * this.aspectY;
+    }
+    const strokeLen = Math.hypot(strokeDx, strokeDy);
+    if (stroked && strokeLen > 1e-5) {
+      const ux = strokeDx / strokeLen;
+      const uy = strokeDy / strokeLen;
+      const targetX = clamp(ux * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
+      const targetY = clamp(uy * STRETCH_GAIN, -STRETCH_MAX, STRETCH_MAX);
+      this.stretchX = ease(this.stretchX, targetX, STRETCH_RISE, dt);
+      this.stretchY = ease(this.stretchY, targetY, STRETCH_RISE, dt);
+      this.stretchVx = 0;
+      this.stretchVy = 0;
+    } else if (stroked) {
+      // Valid contact without motion: hold pose; rebound only after leave.
+      this.stretchVx = 0;
+      this.stretchVy = 0;
+    } else {
+      // ω ≈ 2π / rebound; ζ < 1 → short overshoot then settle inside the envelope.
+      const omega = (Math.PI * 2) / STRETCH_REBOUND;
+      const k = omega * omega;
+      const damp = 2 * STRETCH_DAMPING * omega;
+      this.stretchVx += (-k * this.stretchX - damp * this.stretchVx) * dt;
+      this.stretchVy += (-k * this.stretchY - damp * this.stretchVy) * dt;
+      this.stretchX = clamp(
+        this.stretchX + this.stretchVx * dt,
+        -STRETCH_MAX,
+        STRETCH_MAX,
+      );
+      this.stretchY = clamp(
+        this.stretchY + this.stretchVy * dt,
+        -STRETCH_MAX,
+        STRETCH_MAX,
+      );
+      if (this.stretchAmp() < 1e-4) {
+        this.stretchX = 0;
+        this.stretchY = 0;
+        this.stretchVx = 0;
+        this.stretchVy = 0;
+      }
+    }
+    if (s.seen) {
+      this.prevLookX = this.lookX;
+      this.prevLookY = this.lookY;
+      this.hasPrevLook = true;
+    } else {
+      this.hasPrevLook = false;
+    }
     const targetPeriod =
       this.alarm > 0.2
         ? 2.1
@@ -488,6 +563,9 @@ export class Creature {
       y: +this.y.toFixed(3),
       ripples: this.ripples.length,
       disturb: +this.disturbIntensity.toFixed(3),
+      stretchX: +this.stretchX.toFixed(3),
+      stretchY: +this.stretchY.toFixed(3),
+      stretch: +this.stretchAmp().toFixed(3),
     };
   }
 }
