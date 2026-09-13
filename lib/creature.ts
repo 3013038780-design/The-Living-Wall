@@ -17,6 +17,21 @@ export type Growth = {
   day: string;
   dailyCare: number;
 };
+/** A single stroke-born wave that expands from contact and fades out. */
+export type Ripple = {
+  x: number;
+  y: number;
+  age: number;
+  life: number;
+  amp: number;
+};
+/** FX-01 stroke-ripple tuning (documented in PR / PRD). */
+export const RIPPLE_MAX = 3;
+export const RIPPLE_LIFE = 0.9;
+export const RIPPLE_SPAWN_GAP = 0.3;
+export const RIPPLE_AMP = 0.18;
+/** Aspect-corrected units per second; body radius is ~0.165 so a wave crosses the torso in ~0.5s. */
+export const RIPPLE_SPEED = 0.32;
 export type Signal = {
   x: number;
   y: number;
@@ -115,6 +130,8 @@ export class Creature {
   recoil = 0;
   flash = 0;
   heading = 0;
+  ripples: Ripple[] = [];
+  private rippleCooldown = 0;
   private wasPresent = false;
   private calm = 0;
   private lost = false;
@@ -285,6 +302,26 @@ export class Creature {
       this.care = Math.min(1800, this.care + earned);
       this.affection = clamp(this.affection + earned / 2400);
     }
+    // FX-01: valid stroke frames only; invalid fast swipes share the stroked gate and never spawn.
+    this.rippleCooldown = Math.max(0, this.rippleCooldown - dt);
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      this.ripples[i].age += dt;
+      if (this.ripples[i].age >= this.ripples[i].life) this.ripples.splice(i, 1);
+    }
+    if (
+      stroked &&
+      this.ripples.length < RIPPLE_MAX &&
+      this.rippleCooldown === 0
+    ) {
+      this.ripples.push({
+        x: this.lookX,
+        y: this.lookY,
+        age: 0,
+        life: RIPPLE_LIFE,
+        amp: RIPPLE_AMP,
+      });
+      this.rippleCooldown = RIPPLE_SPAWN_GAP;
+    }
     const targetPeriod =
       this.alarm > 0.2
         ? 2.1
@@ -404,6 +441,7 @@ export class Creature {
       presence: +this.presence.toFixed(2),
       x: +this.x.toFixed(3),
       y: +this.y.toFixed(3),
+      ripples: this.ripples.length,
     };
   }
 }
