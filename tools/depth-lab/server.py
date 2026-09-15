@@ -212,7 +212,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/':
             return self.reply((ROOT/'index.html').read_bytes(),mime='text/html; charset=utf-8')
         if self.path=='/api/state':
-            return self.reply(lab.snapshot())
+            snapshot = lab.snapshot()
+            snapshot['capture_stdin'] = getattr(self.server, 'capture_stdin', False)
+            return self.reply(snapshot)
         self.reply({'error':'Not found'},404)
 
     def do_POST(self):
@@ -225,6 +227,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid request length')
             args=json.loads(self.rfile.read(length))
             if self.path=='/api/start':
+                if getattr(self.server, 'capture_stdin', False):
+                    raise ValueError('独立相机模式会自动连接，无需点击连接。如读取进程已退出，请重新打开权限启动脚本。')
                 if args.get('mode') not in ('camera','simulation'):
                     raise ValueError('请选择相机或模拟模式。')
                 lab.start(args['mode'])
@@ -261,6 +265,7 @@ if __name__=='__main__':
     parser.add_argument('--open',action='store_true')
     args=parser.parse_args()
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
+    server.capture_stdin = args.capture_stdin
     print(f'碎光深度测试台 http://127.0.0.1:{args.port}',flush=True)
     if args.capture_stdin:
         lab.start('pipe')
