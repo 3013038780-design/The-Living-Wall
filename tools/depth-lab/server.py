@@ -1,5 +1,9 @@
 """Loopback-only depth laboratory. Raw frames never leave this process/localhost."""
 import argparse
+import os
+import select
+import struct
+import sys
 import base64
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +15,21 @@ import cv2
 from detector import Detector
 
 ROOT = Path(__file__).resolve().parent
+
+
+def read_exact(count, stop):
+    data = bytearray()
+    while len(data) < count:
+        if stop.is_set():
+            raise ValueError('采集已停止。')
+        ready, _, _ = select.select([sys.stdin.fileno()], [], [], 1)
+        if not ready:
+            continue
+        chunk = os.read(sys.stdin.fileno(), count-len(data))
+        if not chunk:
+            raise ValueError('相机读取进程已退出；请查看启动窗口的错误提示。')
+        data.extend(chunk)
+    return data
 
 
 class Lab:
@@ -36,18 +55,21 @@ class Lab:
             self.result = {}
             self.image = None
             self.frame_at = 0
-            self.message = '正在连接 Gemini 335…' if mode == 'camera' else '模拟数据，不代表相机已连接或触摸已验证。'
+            self.message = '正在等待 Gemini 335 深度数据…' if mode in ('camera','pipe') else '模拟数据，不代表相机已连接或触摸已验证。'
             self.stop = threading.Event()
             self.worker = threading.Thread(target=self.run, args=(mode,self.stop), daemon=True)
             self.worker.start()
 
     def shutdown(self):
+        was_pipe = self.mode == 'pipe'
         self.stop.set()
         if self.worker:
             self.worker.join(timeout=4)
             if self.worker.is_alive():
                 raise ValueError('设备仍在关闭，请稍后重试。')
         self.worker = None
+        if was_pipe:
+            sys.stdin.close()
         with self.lock:
             self.mode = 'stopped'
             self.image = None
@@ -88,7 +110,20 @@ class Lab:
                     self.message = 'Gemini 335 深度流已连接。固定相机，对准平整表面后校准。'
             missed = 0
             while not stop.is_set():
-                if mode == 'camera':
+                if mode == 'pipe':
+                    size = struct.unpack('!I', read_exact(4, stop))[0]
+                    if not 0 < size < 4096:
+                        raise ValueError('无效相机数据头。')
+                    header = json.loads(read_exact(size, stop))
+                    w, h = int(header['width']), int(header['height'])
+                    if not 0 < w <= 4096 or not 0 < h <= 4096:
+                        raise ValueError('无效深度分辨率。')
+                    depth = np.frombuffer(read_exact(w*h*4, stop), '<f4').reshape(h,w)
+                    intr = header['intrinsics']
+                    factor = 320/w
+                    depth = cv2.resize(depth,(320,round(h*factor)),interpolation=cv2.INTER_NEAREST)
+                    scaled = (intr[0]*factor,intr[1]*factor,(intr[2]+.5)*factor-.5,(intr[3]+.5)*factor-.5)
+                elif mode == 'camera':
                     frames = pipeline.wait_for_frames(1000)
                     frame = frames.get_depth_frame() if frames else None
                     if frame is None:
@@ -113,6 +148,8 @@ class Lab:
                     depth += np.random.default_rng().normal(0,.6,depth.shape).astype(np.float32)
                     stop.wait(.07)
                 with self.lock:
+                    if mode == 'pipe':
+                        self.message = 'Gemini 335 真实深度流已连接（独立相机读取进程）。'
                     self.result=self.detector.update(depth,scaled,contact=self.contact)
                     self.frame_at=time.monotonic()
                     visible=(depth>100)&(depth<5000)
@@ -122,7 +159,11 @@ class Lab:
                     self.image=base64.b64encode(cv2.imencode('.jpg',rgb,[cv2.IMWRITE_JPEG_QUALITY,75])[1]).decode()
         except Exception as exc:
             with self.lock:
-                self.message=f'{type(exc).__name__}: {exc}'
+                self.message = (
+                    '相机已检测到，但 macOS 拒绝打开 USB 视频接口。请从 Mac 终端启动测试台后重试；若仍失败，需要进一步处理设备访问权限。错误：' + str(exc)
+                    if 'uvc_open' in str(exc) and 'Code: -3' in str(exc)
+                    else f'{type(exc).__name__}: {exc}'
+                )
                 self.result={'state':'error'}
                 self.mode='error'
                 self.image=None
@@ -216,9 +257,16 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--port',type=int,default=8765)
+    parser.add_argument('--capture-stdin',action='store_true')
+    parser.add_argument('--open',action='store_true')
     args=parser.parse_args()
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
     print(f'碎光深度测试台 http://127.0.0.1:{args.port}',flush=True)
+    if args.capture_stdin:
+        lab.start('pipe')
+    if args.open:
+        import webbrowser
+        webbrowser.open(f'http://127.0.0.1:{args.port}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
