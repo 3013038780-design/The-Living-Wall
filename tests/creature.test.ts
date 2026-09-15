@@ -188,7 +188,7 @@ void test('a sudden scare interrupts pleasure promptly', () => {
   assert.ok(c.enjoyment < 0.1);
 });
 
-test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => {
+void test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => {
   const stroked = new Creature();
   for (let i = 0; i < 480; i++)
     stroked.step(1 / 60, {
@@ -221,7 +221,7 @@ test('valid strokes spawn decaying ripples; fast swipes and idle do not', () => 
   assert.equal(idle.ripples.length, 0);
 });
 
-test('continuous stroking keeps concurrent ripples within the cap', () => {
+void test('continuous stroking keeps concurrent ripples within the cap', () => {
   const c = new Creature();
   for (let i = 0; i < 900; i++) {
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -231,7 +231,7 @@ test('continuous stroking keeps concurrent ripples within the cap', () => {
   assert.ok(c.enjoyment > 0.7);
 });
 
-test('startle clears new ripple spawning without freezing breath recovery path', () => {
+void test('startle clears new ripple spawning without freezing breath recovery path', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -245,7 +245,7 @@ test('startle clears new ripple spawning without freezing breath recovery path',
   assert.ok(c.breathPeriod > 0);
 });
 
-test('gentle strokes raise local disturbance near contact more than far', () => {
+void test('gentle strokes raise local disturbance near contact more than far', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -259,7 +259,7 @@ test('gentle strokes raise local disturbance near contact more than far', () => 
   assert.ok(near > far * 4);
 });
 
-test('after leaving, local disturbance settles without long residual shake', () => {
+void test('after leaving, local disturbance settles without long residual shake', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -270,7 +270,7 @@ test('after leaving, local disturbance settles without long residual shake', () 
   assert.ok(c.disturbIntensity < 0.02);
 });
 
-test('local disturbance coexists with ripples and stays bounded', () => {
+void test('local disturbance coexists with ripples and stays bounded', () => {
   const c = new Creature();
   for (let i = 0; i < 900; i++) {
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -282,7 +282,7 @@ test('local disturbance coexists with ripples and stays bounded', () => {
   assert.ok(c.enjoyment > 0.7);
 });
 
-test('fast swipe does not drive local disturbance; startle still works', () => {
+void test('fast swipe does not drive local disturbance; startle still works', () => {
   const swipe = new Creature();
   for (let i = 0; i < 480; i++)
     swipe.step(1 / 60, {
@@ -305,7 +305,7 @@ test('fast swipe does not drive local disturbance; startle still works', () => {
   assert.ok(c.disturbIntensity < 0.35);
 });
 
-test('disturbFalloff is near-strong and far-weak within the influence radius', () => {
+void test('disturbFalloff is near-strong and far-weak within the influence radius', () => {
   assert.ok(disturbFalloff(0) > 0.99);
   assert.ok(disturbFalloff(DISTURB_RADIUS * 0.5) < disturbFalloff(0));
   assert.ok(
@@ -314,7 +314,7 @@ test('disturbFalloff is near-strong and far-weak within the influence radius', (
   assert.ok(disturbFalloff(DISTURB_RADIUS * 2) < 0.05);
 });
 
-test('horizontal vs vertical strokes stretch in distinguishable directions', () => {
+void test('horizontal vs vertical strokes stretch in distinguishable directions', () => {
   const horiz = new Creature();
   for (let i = 0; i < 480; i++)
     horiz.step(1 / 60, {
@@ -373,7 +373,7 @@ test('horizontal vs vertical strokes stretch in distinguishable directions', () 
   assert.ok(lateVY > STRETCH_GAIN_Y * 0.7);
 });
 
-test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
+void test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
   const c = new Creature();
   for (let i = 0; i < 480; i++)
     c.step(1 / 60, { x: c.x + 0.065, y: c.y, speed: 0.15, seen: true });
@@ -395,7 +395,7 @@ test('after stop, stretch rebounds while enjoyment afterglow remains', () => {
   assert.ok(c.enjoyment > 0.2);
 });
 
-test('directional stretch coexists with ripples and local disturbance', () => {
+void test('directional stretch coexists with ripples and local disturbance', () => {
   const c = new Creature();
   let hx = 0.57;
   for (let i = 0; i < 900; i++) {
@@ -411,7 +411,7 @@ test('directional stretch coexists with ripples and local disturbance', () => {
   assert.ok(c.enjoyment > 0.7);
 });
 
-test('fast swipe does not drive stretch; startle still works', () => {
+void test('fast swipe does not drive stretch; startle still works', () => {
   const swipe = new Creature();
   for (let i = 0; i < 480; i++)
     swipe.step(1 / 60, {

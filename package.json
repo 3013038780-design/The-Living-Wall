@@ -12,7 +12,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "build:tencent": "DEPLOY_TARGET=tencent vinext build",
-    "test": "node --test tests/creature.test.ts",
+    "test": "node --test tests/creature.test.ts tests/draw-creature.test.ts",
     "setup:assets": "node scripts/setup-assets.mjs",
     "typecheck": "tsc --noEmit"
   },
