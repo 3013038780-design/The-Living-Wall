@@ -22,7 +22,21 @@ function checkedContext() {
       },
       translate: numeric,
       rotate: numeric,
+      transform: numeric,
       arc: numeric,
+      moveTo: numeric,
+      lineTo: numeric,
+      clearRect: numeric,
+      drawImage(_image: unknown, ...coordinates: number[]) {
+        numeric(...coordinates);
+      },
+      createLinearGradient(...args: number[]) {
+        numeric(...args);
+        return {
+          addColorStop: (offset: number) =>
+            assert.ok(offset >= 0 && offset <= 1),
+        };
+      },
       fillRect(x: number, y: number, w: number, h: number) {
         numeric(x, y, w, h);
         assert.ok(w >= 0 && h >= 0);
@@ -36,6 +50,8 @@ function checkedContext() {
         };
       },
       beginPath() {},
+      closePath() {},
+      fill() {},
       stroke() {},
     } as unknown as CanvasRenderingContext2D,
     balanced() {
@@ -67,6 +83,50 @@ void test('layer geometry is reproducible, depth ordered and overlaps the core/b
     'body must overlap the core instead of forming a hollow shell',
   );
   harness.balanced();
+});
+
+void test('live sprite atlas is reused across frames and rebuilt only for growth color changes', () => {
+  const original = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'OffscreenCanvas',
+  );
+  const atlas = checkedContext();
+  let allocations = 0,
+    clears = 0;
+  atlas.ctx.clearRect = () => {
+    clears++;
+  };
+  Object.defineProperty(globalThis, 'OffscreenCanvas', {
+    configurable: true,
+    value: class {
+      constructor(width: number, height: number) {
+        assert.ok(width > 0 && height > 0);
+        allocations++;
+      }
+      getContext() {
+        return atlas.ctx;
+      }
+    },
+  });
+  try {
+    const renderer = new CreatureRenderer();
+    const c = new Creature();
+    const target = checkedContext();
+    for (let i = 0; i < 30; i++)
+      renderer.draw(target.ctx, 599, 498, 1 / 60, c, false);
+    assert.equal(allocations, 1);
+    assert.equal(clears, 1);
+    c.care = 900;
+    renderer.draw(target.ctx, 599, 498, 1 / 60, c, false);
+    assert.equal(allocations, 1);
+    assert.equal(clears, 2);
+    atlas.balanced();
+    target.balanced();
+  } finally {
+    if (original)
+      Object.defineProperty(globalThis, 'OffscreenCanvas', original);
+    else Reflect.deleteProperty(globalThis, 'OffscreenCanvas');
+  }
 });
 
 void test('renderer emits finite geometry in narrow, full HD, mature, startled and resting states', () => {

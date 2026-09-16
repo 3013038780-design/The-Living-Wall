@@ -39,8 +39,14 @@ function makeBrick(i: number): Brick {
     rotation: 0,
     curl: 0,
     ready: false,
-    angle: noise(i, 2) * TAU,
-    radial: noise(i, 1),
+    // A stratified disc avoids accidental empty wedges and bright random clumps.
+    angle: i * 2.399963229728653,
+    radial:
+      i < CORE_COUNT
+        ? (i + 0.5) / CORE_COUNT
+        : i < BODY_END
+          ? (i - CORE_COUNT + 0.5) / (BODY_END - CORE_COUNT)
+          : noise(i, 1),
     depth: noise(i, 3),
     length: noise(i, 4),
     thickness: noise(i, 5),
@@ -49,6 +55,50 @@ function makeBrick(i: number): Brick {
 }
 
 export class CreatureRenderer {
+  private atlas: OffscreenCanvas | null = null;
+  private atlasMaturity = -1;
+  private bodyHeading = 0;
+
+  private prepareAtlas(maturity: number) {
+    const level = Math.round(maturity * 24);
+    if (this.atlasMaturity === level || typeof OffscreenCanvas === 'undefined')
+      return;
+    this.atlas ??= new OffscreenCanvas(2304, 336);
+    const g = this.atlas.getContext('2d');
+    if (!g) return;
+    this.atlasMaturity = level;
+    g.clearRect(0, 0, 2304, 336);
+    for (let layer = 0; layer < 3; layer++) {
+      for (let color = 0; color < 8; color++) {
+        g.save();
+        g.translate(color * 288 + 48, layer * 112 + 40);
+        const hue = 190 + color * 45;
+        const saturation = color === 0 ? 0 : (level / 24) * 55;
+        const ink = (alpha: number) =>
+          `hsla(${hue},${saturation}%,96%,${alpha})`;
+        // Blur is baked once into the atlas, never applied to individual live shards.
+        g.shadowColor = ink(0.7);
+        g.shadowBlur = 17;
+        g.fillStyle = ink(0.2);
+        g.fillRect(0, 0, 192, 24);
+        g.shadowBlur = 0;
+        const face = g.createLinearGradient(0, 0, 0, 24);
+        face.addColorStop(0, ink(0.17 + layer * 0.025));
+        face.addColorStop(0.35, ink(0.38 + layer * 0.035));
+        face.addColorStop(1, ink(0.08));
+        g.fillStyle = face;
+        g.fillRect(0, 0, 192, 24);
+        g.fillStyle = ink(0.48 + layer * 0.13);
+        g.fillRect(0, 0, 192, 1.3);
+        g.fillStyle = ink(0.21 + layer * 0.065);
+        g.fillRect(0, 1, 1.1, 23);
+        g.fillRect(191, 1, 1, 23);
+        g.fillRect(0, 23, 192, 1);
+        g.restore();
+      }
+    }
+  }
+
   particles = Array.from({ length: FRAGMENT_COUNT }, (_, i) =>
     makeBrick(i),
   ).sort((a, b) => a.depth - b.depth);
@@ -69,7 +119,16 @@ export class CreatureRenderer {
     const base = unit * 0.165 * c.growthScale;
     const t = c.time;
     const breathe = 1 + (c.breath - 0.5) * (0.15 + c.enjoyment * 0.06);
-    const heading = c.heading,
+    // Looking around must not turn an idle horizontal light body into a vertical stack.
+    // Touch gradually frees the body's orientation; the behaviour heading is unchanged.
+    const targetHeading = c.enjoyment > 0.05 ? c.heading : 0;
+    const turn = Math.atan2(
+      Math.sin(targetHeading - this.bodyHeading),
+      Math.cos(targetHeading - this.bodyHeading),
+    );
+    this.bodyHeading +=
+      turn * (1 - Math.exp(-dt * (c.enjoyment > 0.05 ? c.enjoyment * 2 : 1.5)));
+    const heading = this.bodyHeading,
       cos = Math.cos(heading),
       sin = Math.sin(heading);
     const stretchAmp = c.stretchAmp();
@@ -82,6 +141,7 @@ export class CreatureRenderer {
     const toward = Math.hypot(c.lookX * w - cx, c.lookY * h - cy);
     const tipLength = Math.min(toward, base * 2.4) * c.feeler;
     const breathLight = 0.94 + c.breath * 0.06;
+    this.prepareAtlas(c.maturity);
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
@@ -90,8 +150,8 @@ export class CreatureRenderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
     const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, base * 1.05);
-    glow.addColorStop(0, `rgba(250,251,255,${0.13 * breathLight})`);
-    glow.addColorStop(0.4, 'rgba(250,251,255,0.055)');
+    glow.addColorStop(0, `rgba(250,251,255,${0.2 * breathLight})`);
+    glow.addColorStop(0.4, 'rgba(250,251,255,0.085)');
     glow.addColorStop(1, 'rgba(250,251,255,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(cx - base * 1.05, cy - base * 1.05, base * 2.1, base * 2.1);
@@ -103,7 +163,7 @@ export class CreatureRenderer {
         ? Math.sqrt(p.radial) * 0.43
         : isScout
           ? 0.78 + p.radial * 0.26
-          : 0.025 + Math.pow(p.radial, 0.72) * 0.99;
+          : 0.025 + Math.pow(p.radial, 0.7) * 0.99;
       const rim = Math.max(0, (radiusN - 0.65) / 0.4);
       const a = p.angle + Math.sin(t * 0.14 + p.seed) * 0.045;
       const radius =
@@ -112,9 +172,9 @@ export class CreatureRenderer {
         (isCore ? c.core : c.radius) *
         breathe *
         (0.87 + p.depth * 0.2);
-      let qx = Math.cos(a) * radius * (1 + c.openness * 0.14);
+      let qx = Math.cos(a) * radius * (1.25 + c.openness * 0.14);
       let qy =
-        Math.sin(a) * radius * (0.76 + c.openness * 0.1 - c.alarm * 0.12);
+        Math.sin(a) * radius * (0.62 + c.openness * 0.1 - c.alarm * 0.12);
       qx += Math.sin(a * 3 + t * 0.32) * base * 0.02 * radiusN;
       qy += Math.cos(a * 4 - t * 0.24) * base * 0.018 * radiusN;
       if (isScout) {
@@ -141,6 +201,11 @@ export class CreatureRenderer {
       }
       let wx = cx + qx * cos - qy * sin;
       let wy = cy + qx * sin + qy * cos;
+      if (isScout) {
+        // Exploration still follows the actual attention direction.
+        wx = cx + qx * Math.cos(c.heading) - qy * Math.sin(c.heading);
+        wy = cy + qx * Math.sin(c.heading) + qy * Math.cos(c.heading);
+      }
       let disturbBoost = 0,
         bend = 0;
       if (c.disturbIntensity > 0.001 && !isScout) {
@@ -191,7 +256,8 @@ export class CreatureRenderer {
       p.curl = ease(p.curl, disturbBoost, 9, dt);
       p.rotation = ease(
         p.rotation,
-        Math.sin(p.seed + t * 0.12) * 0.045 + bend * 1.25,
+        Math.sin(p.seed) * (0.015 + p.depth * 0.045 + p.curl * 0.4) +
+          bend * 1.25,
         10,
         dt,
       );
@@ -209,33 +275,69 @@ export class CreatureRenderer {
       const hue = (190 + p.i * 1.8 + c.enjoyment * 35) % 360;
       const light = isCore ? 98 : 92 + p.depth * 6 - c.maturity * 10;
       const length =
-        base * (isScout ? 0.075 + p.length * 0.13 : 0.115 + p.length * 0.2);
-      const width = length * (1 - p.curl * (0.25 + p.thickness * 0.2));
+        base *
+        (isScout ? 0.075 + p.length * 0.13 : 0.09 + p.length * p.length * 0.25);
+      const width =
+        length *
+        (1 - c.enjoyment * 0.4) *
+        (1 - p.curl * (0.58 + p.thickness * 0.16));
       const height =
         base *
-        (isScout ? 0.004 + p.thickness * 0.005 : 0.014 + p.thickness * 0.025) *
-        (0.78 + p.depth * 0.32) *
-        (1 + p.curl * 0.55);
+        (isScout
+          ? 0.004 + p.thickness * 0.005
+          : 0.024 + p.thickness * p.thickness * 0.045) *
+        (0.65 + p.depth * 0.6) *
+        (1 + c.enjoyment * 0.6) *
+        (1 + p.curl * 0.35);
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rotation);
-      ctx.fillStyle = `hsla(${hue},${saturation}%,${light}%,${Math.min(0.84, alpha * feedback)})`;
-      ctx.fillRect(-width / 2, -height / 2, width, height);
-      ctx.fillStyle = `hsla(${hue},${saturation * 0.65}%,65%,${alpha * (0.15 + p.curl * 0.3)})`;
-      ctx.fillRect(
-        -width / 2 + height * 0.3,
-        height / 2,
-        width - height * 0.3,
-        Math.max(0.45, height * 0.22),
+      ctx.transform(1, 0, p.curl * Math.sin(p.seed) * 0.45, 1, 0, 0);
+      // Screen blending transmits the underlying layers and bounds the highlights.
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = Math.min(
+        1,
+        (0.65 + p.depth * 0.35) * (1 - rim * 0.3) * feedback * breathLight,
       );
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(255,255,255,${alpha * (0.14 + p.depth * 0.12)})`;
-      ctx.fillRect(
-        -width / 2,
-        -height / 2,
-        width,
-        Math.max(0.4, height * 0.14),
-      );
+      if (this.atlas) {
+        const color = isCore ? 0 : 1 + (p.i % 7);
+        const layer = Math.min(2, Math.floor(p.depth * 3));
+        ctx.drawImage(
+          this.atlas,
+          color * 288,
+          layer * 112,
+          288,
+          112,
+          -width * 0.75,
+          -height * (0.5 + 40 / 24),
+          width * 1.5,
+          (height * 112) / 24,
+        );
+      } else {
+        // Canvas implementations without OffscreenCanvas retain the same face/edge geometry.
+        ctx.fillStyle = `hsla(${hue},${saturation}%,${light}%,0.28)`;
+        ctx.fillRect(-width / 2, -height / 2, width, height);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillRect(
+          -width / 2,
+          -height / 2,
+          width,
+          Math.max(0.35, height * 0.055),
+        );
+      }
+      if (p.curl > 0.03) {
+        // A projected side face opens as the same brick turns through the local bend.
+        const side = height * (0.18 + p.curl * 0.55);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = `hsla(${hue},${saturation}%,76%,${p.curl * (0.2 + p.depth * 0.35)})`;
+        ctx.beginPath();
+        ctx.moveTo(width / 2, -height / 2);
+        ctx.lineTo(width / 2 + side, -height / 2 - side * 0.6);
+        ctx.lineTo(width / 2 + side, height / 2 - side * 0.6);
+        ctx.lineTo(width / 2, height / 2);
+        ctx.closePath();
+        ctx.fill();
+      }
       ctx.restore();
     }
     if (marker && c.presence > 0.1) {

@@ -1,0 +1,40 @@
+
+> sites-project@0.1.0 test
+> node --test tests/creature.test.ts tests/draw-creature.test.ts
+
+✔ first encounter observes and probes before approaching and bonding (57.2771ms)
+✔ short occlusion holds engagement; a departure searches then rests (42.2249ms)
+✔ repeated shocks accumulate caution and extend recovery (32.2065ms)
+✔ standing still invites; a gentle answer ends invitation (54.1589ms)
+✔ new encounter inherits trust but still observes before moving (20.1213ms)
+✔ recovery geometry stays continuous at all phase boundaries (33.3859ms)
+✔ gentle body strokes bring pleasure with a lingering afterglow; idle cannot grow (82.12ms)
+✔ growth survives restore, is capped daily and never decays through absence (18.2669ms)
+✔ breathing remains continuous and becomes slower with pleasure (3.6134ms)
+✔ fatigue causes sustained rest instead of rapidly toggling at the threshold (42.5827ms)
+✔ explicit hover can attract attention but cannot count as a wall stroke (14.944ms)
+✔ a sudden scare interrupts pleasure promptly (13.9546ms)
+✔ valid strokes spawn decaying ripples; fast swipes and idle do not (44.4794ms)
+✔ continuous stroking keeps concurrent ripples within the cap (21.6853ms)
+✔ startle clears new ripple spawning without freezing breath recovery path (5.6914ms)
+✔ gentle strokes raise local disturbance near contact more than far (10.4021ms)
+✔ after leaving, local disturbance settles without long residual shake (58.1013ms)
+✔ local disturbance coexists with ripples and stays bounded (7.0512ms)
+✔ fast swipe does not drive local disturbance; startle still works (9.933ms)
+✔ disturbFalloff is near-strong and far-weak within the influence radius (0.4768ms)
+✔ horizontal vs vertical strokes stretch in distinguishable directions (16.6537ms)
+✔ after stop, stretch rebounds while enjoyment afterglow remains (95.3842ms)
+✔ directional stretch coexists with ripples and local disturbance (22.9176ms)
+✔ fast swipe does not drive stretch; startle still works (41.3884ms)
+✔ layer geometry is reproducible, depth ordered and overlaps the core/body boundary (107.552ms)
+✔ live sprite atlas is reused across frames and rebuilt only for growth color changes (895.313ms)
+✔ renderer emits finite geometry in narrow, full HD, mature, startled and resting states (23899.9395ms)
+✔ touch bends existing fragments and decays after release without replacing them (4297.5433ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30945.9002
