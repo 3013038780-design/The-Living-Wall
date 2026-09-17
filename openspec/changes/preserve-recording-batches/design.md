@@ -15,6 +15,7 @@ Prevent batch reuse and overwriting. Only completed assertions, writes and clean
 - Write shots/state as available. On failure preserve diagnostic evidence, exit nonzero, close browser and owned server. Cleanup failure prevents passed.
 - Keep isolated browser context, real slow strokes/release/startle assertions. No camera or user profile.
 - Initial real capture exposed slow-host timing: retain thresholds, allow up to 90 seconds per stroke, and check the captured state atomically before writing a success shot. Ask the OS for a free port because Vite treats port 0 as its default; strictPort still rejects races.
+- Queue the two fast-swipe browser input events together; allow at most three real attempts and record their count. No state injection. Exclude the configured output root from source identity so a custom non-ignored output directory cannot invalidate its own capture; reject the repository itself as output root.
 - Pure Node tests run in CI; actual browser acceptance runs locally. Generated batches ignored; attach two manifests, hash comparison and one representative video to PR.
 
 ## Risks / Trade-offs

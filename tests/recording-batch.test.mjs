@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -8,6 +9,7 @@ import {
   inventory,
   sha256,
   targetProvenance,
+  sourceIdentity,
 } from '../scripts/recording-batch.mjs';
 
 async function root(t) {
@@ -143,4 +145,39 @@ void test('custom URLs never inherit recorder source provenance', () => {
     assert.equal(target.verification, 'unverified');
     assert.equal(target.source, null);
   }
+});
+
+void test('custom output root is excluded but real source changes remain detectable', async (t) => {
+  const dir = await root(t);
+  const git = (...args) =>
+    execFileSync(
+      'git',
+      ['-c', `safe.directory=${dir.replaceAll('\\', '/')}`, ...args],
+      { cwd: dir, stdio: 'pipe' },
+    );
+  git('init');
+  await writeFile(join(dir, 'app.js'), 'original');
+  git('add', 'app.js');
+  git(
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.invalid',
+    '-c',
+    'commit.gpgsign=false',
+    'commit',
+    '-m',
+    'fixture',
+  );
+  const outputRoot = join(dir, 'custom-recordings');
+  const before = await sourceIdentity(dir, outputRoot);
+  assert.equal(before.dirty, false);
+  const batch = await createBatch(outputRoot);
+  await batch.write('capture.json', '{}');
+  assert.deepEqual(await sourceIdentity(dir, outputRoot), before);
+  await writeFile(join(dir, 'app.js'), 'changed');
+  const after = await sourceIdentity(dir, outputRoot);
+  assert.equal(after.dirty, true);
+  assert.notEqual(after.sourceSha256, before.sourceSha256);
+  await assert.rejects(sourceIdentity(dir, dir), /repository root/);
 });

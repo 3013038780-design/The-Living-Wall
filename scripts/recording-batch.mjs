@@ -8,14 +8,14 @@ import {
   readdir,
   lstat,
 } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, isAbsolute } from 'node:path';
 
 export const sha256 = (bytes) =>
   createHash('sha256').update(bytes).digest('hex');
 
 // Hash the actual working source, including untracked (but not ignored) files.
 // No absolute machine paths or file contents are exposed in the manifest.
-export async function sourceIdentity(cwd) {
+export async function sourceIdentity(cwd, outputRoot) {
   const git = (...args) =>
     execFileSync(
       'git',
@@ -27,10 +27,39 @@ export async function sourceIdentity(cwd) {
       },
     );
   const commit = git('rev-parse', 'HEAD').trim();
-  const status = git('status', '--porcelain', '--untracked-files=all');
+  const outputRelative = outputRoot
+    ? relative(cwd, outputRoot).replaceAll('\\', '/')
+    : null;
+  // Custom output roots need not already be gitignored. Exclude generated
+  // batches, not source changes, when checking provenance during a recording.
+  if (outputRelative === '')
+    throw new Error('Output root must not be the repository root');
+  const pathsArgs = [
+    '--',
+    '.',
+    ...(outputRelative &&
+    outputRelative !== '..' &&
+    !outputRelative.startsWith('../') &&
+    !isAbsolute(outputRelative)
+      ? [`:(exclude,literal)${outputRelative}`]
+      : []),
+  ];
+  const status = git(
+    'status',
+    '--porcelain',
+    '--untracked-files=all',
+    ...pathsArgs,
+  );
   const paths = [
     ...new Set(
-      git('ls-files', '-z', '--cached', '--others', '--exclude-standard')
+      git(
+        'ls-files',
+        '-z',
+        '--cached',
+        '--others',
+        '--exclude-standard',
+        ...pathsArgs,
+      )
         .split('\0')
         .filter(Boolean),
     ),

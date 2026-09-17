@@ -15,15 +15,15 @@ import {
 const require = createRequire(import.meta.url);
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(cwd);
-const batch = await createBatch(
-  resolve(process.env.QA_OUTPUT_DIR || 'outputs/lighting-recordings'),
-  {
-    viewport: { width: 1280, height: 720 },
-    dpr: 1,
-    browserVersion: null,
-    target: { verification: 'unverified', source: null },
-  },
+const outputRoot = resolve(
+  process.env.QA_OUTPUT_DIR || 'outputs/lighting-recordings',
 );
+const batch = await createBatch(outputRoot, {
+  viewport: { width: 1280, height: 720 },
+  dpr: 1,
+  browserVersion: null,
+  target: { verification: 'unverified', source: null },
+});
 console.log(`Recording batch: ${batch.directory}`);
 let browser;
 let server;
@@ -37,7 +37,7 @@ const record = async (name, bytes) => {
   required.push(name);
 };
 try {
-  source = await sourceIdentity(cwd);
+  source = await sourceIdentity(cwd, outputRoot);
   const scriptHashes = {};
   for (const name of ['lighting-browser-qa.mjs', 'recording-batch.mjs']) {
     scriptHashes[name] = sha256(await readFile(resolve(cwd, 'scripts', name)));
@@ -197,10 +197,37 @@ try {
     { timeout: 90000 },
   );
   await shot('final-release');
-  s = await state();
-  await page.mouse.move(s.x * 1280 - 240, s.y * 720);
-  await page.mouse.move(s.x * 1280 + 40, s.y * 720);
-  await page.waitForTimeout(300);
+  // Queue genuine browser input together so host round trips cannot turn a
+  // fast swipe into two unrelated samples (>300ms apart in the app).
+  const inputSession = await context.newCDPSession(page);
+  let swipeAttempts = 0;
+  for (; swipeAttempts < 3; swipeAttempts++) {
+    s = await state();
+    await Promise.all([
+      inputSession.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: s.x * 1280 - 240,
+        y: s.y * 720,
+      }),
+      inputSession.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: s.x * 1280 + 40,
+        y: s.y * 720,
+      }),
+    ]);
+    try {
+      await page.waitForFunction(
+        () => window.qaTools.get_creature_state.execute({}).alarm > 0.1,
+        null,
+        { timeout: 3000 },
+      );
+      swipeAttempts++;
+      break;
+    } catch (error) {
+      if (error.name !== 'TimeoutError') throw error;
+    }
+  }
+  await inputSession.detach();
   await shot('final-fast');
   await page.mouse.move(-1, -1);
   await page.waitForTimeout(6000);
@@ -237,7 +264,7 @@ try {
   await record(
     'browser-results.json',
     JSON.stringify(
-      { viewport: '1280x720', dpr: 1, errors, timings, records },
+      { viewport: '1280x720', dpr: 1, errors, timings, records, swipeAttempts },
       null,
       2,
     ),
@@ -258,7 +285,7 @@ try {
   assert.ok(records.find((r) => r.stage === 'final-recovery').alarm < 0.01);
   if (server)
     assert.deepEqual(
-      await sourceIdentity(cwd),
+      await sourceIdentity(cwd, outputRoot),
       source,
       'Local source changed during recording',
     );
