@@ -4,7 +4,7 @@
 
 ## 启动
 
-当前电脑已装好本目录 `.venv`。双击 `启动深度测试.command`，或在本目录运行 `.venv/bin/python server.py`，打开 http://127.0.0.1:8765 。终端 Ctrl+C 停止服务；网页“断开”停止采集。
+完成下方虚拟环境安装后，双击 `启动深度测试.command`，或在本目录运行 `.venv/bin/python server.py`，打开 http://127.0.0.1:8765 。终端 Ctrl+C 停止服务；网页“断开”停止采集。
 
 其他 Mac 使用 Python 3.12 ARM64：
 
@@ -47,4 +47,4 @@ python3.12 -m venv .venv
 
 2026-09-15 设备已以 USB 3 识别，但普通启动（包括用户终端）无法打开接口。若出现此错误，可双击 `启动相机权限测试.command`，在系统终端内输入 Mac 管理员密码。脚本只提升 `camera_capture.py` 相机读取进程；通过匿名管道把深度帧交给普通权限的网页服务（127.0.0.1:8767）。不修改系统长期权限、不执行固件更新，不在聊天中索要密码。关闭启动窗口或 Ctrl+C 结束会话。
 
-该脚本需要用户本机密码，尚未验证提权后的真实采集。匿名管道已用合成数据验证，断流会清空画面并显示错误。官方参考：https://orbbec.github.io/pyorbbecsdk/source/7_FAQ/FAQ.html#permission-denied-on-macos 。
+该脚本需要用户本机密码。2026-09-15 已在用户 Mac 上确认真实深度流连接并持续返回画面（当次检查帧龄 8 ms），当时状态仍为未校准；平面校准、物理触碰精度和投影尚未完成真实验收。匿名管道已用合成数据验证，断流会清空画面并显示错误。官方参考：https://orbbec.github.io/pyorbbecsdk/source/7_FAQ/FAQ.html#permission-denied-on-macos 。
