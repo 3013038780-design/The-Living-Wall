@@ -1,0 +1,74 @@
+[
+  {
+    "revision": "95300a3",
+    "width": 1280,
+    "height": 720,
+    "dpr": 1,
+    "medianMs": 23.80000001192093,
+    "p95Ms": 33.79999999701977,
+    "samples": 80
+  },
+  {
+    "revision": "current",
+    "width": 1280,
+    "height": 720,
+    "dpr": 1,
+    "medianMs": 13.100000008940697,
+    "p95Ms": 18.5,
+    "samples": 80
+  },
+  {
+    "revision": "95300a3",
+    "width": 1920,
+    "height": 1080,
+    "dpr": 1,
+    "medianMs": 22.299999997019768,
+    "p95Ms": 37.80000001192093,
+    "samples": 80
+  },
+  {
+    "revision": "current",
+    "width": 1920,
+    "height": 1080,
+    "dpr": 1,
+    "medianMs": 15.299999997019768,
+    "p95Ms": 23.799999997019768,
+    "samples": 80
+  },
+  {
+    "revision": "95300a3",
+    "width": 599,
+    "height": 498,
+    "dpr": 1,
+    "medianMs": 21.799999997019768,
+    "p95Ms": 33.099999994039536,
+    "samples": 80
+  },
+  {
+    "revision": "current",
+    "width": 599,
+    "height": 498,
+    "dpr": 1,
+    "medianMs": 13.5,
+    "p95Ms": 19.19999998807907,
+    "samples": 80
+  },
+  {
+    "revision": "95300a3",
+    "width": 1280,
+    "height": 720,
+    "dpr": 2,
+    "medianMs": 27,
+    "p95Ms": 45.19999998807907,
+    "samples": 80
+  },
+  {
+    "revision": "current",
+    "width": 1280,
+    "height": 720,
+    "dpr": 2,
+    "medianMs": 18,
+    "p95Ms": 39,
+    "samples": 80
+  }
+]
