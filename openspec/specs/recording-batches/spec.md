@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Recording batches
+
+## Purpose
+
+为灯光录制提供独立且可追溯的证据批次，确保重复执行、并发、失败及中断不会覆盖已有素材；记录真实完成状态、被测来源和文件哈希，让团队能依据证据验收和接续工作。
+
+## Requirements
 
 ### Requirement: Exclusive batches
 The recorder SHALL create a unique UTC timestamp plus UUID batch for every invocation using exclusive directory creation. It SHALL refuse existing directories and artifact files.

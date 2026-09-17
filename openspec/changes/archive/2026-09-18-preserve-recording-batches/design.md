@@ -25,3 +25,7 @@ Hard termination or disk exhaustion can prevent failure metadata, so running nev
 ## Rollout
 
 One child Issue/worktree/PR. Specs precede code; validate strictly, test, record twice plus failed URL, archive specs. No merge or deployment.
+
+## 本次验收决策（2026-09-18）
+
+原定双次完整自动录制及交互式播放检查在本次自动化多次失败后，由用户确认的人工 GIF、已有成功录制、完整解码、批次测试和哈希证据组合替代。只改变本次交付的验收方式，不改变录制器 passed 条件或通用验证规则。详见 tasks.md 和证据说明。
