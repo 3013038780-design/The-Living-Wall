@@ -6,7 +6,7 @@
 // 本地试运行：$env:GH_TOKEN = (gh auth token); node scripts/project-pulse.mjs
 // 无第三方依赖，Node.js 22+ 内置 fetch 直接可用。
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 const REPO = process.env.GITHUB_REPOSITORY || "3013038780-design/The-Living-Wall";
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -283,5 +283,18 @@ ${timelineLines.join("\n")}
 `;
 
 const outUrl = new URL("../项目动态.md", import.meta.url);
-await writeFile(outUrl, md, "utf8");
-console.log(`已生成 项目动态.md（${REPO}）：任务 ${issues.length}，PR ${prs.length}，分支 ${branches.length}`);
+// 忽略「最后更新」时间戳进行对比：无实质变化时不改写文件，
+// 机器人因此不会产生仅时间戳不同的空提交。
+const stripStamp = (s) => s.replace(/最后更新：[^\n]*/, "最后更新：<略>");
+let existing = null;
+try {
+  existing = await readFile(outUrl, "utf8");
+} catch {
+  // 首次生成，文件尚不存在
+}
+if (existing !== null && stripStamp(existing) === stripStamp(md)) {
+  console.log("无实质变化，保留原文件与时间戳");
+} else {
+  await writeFile(outUrl, md, "utf8");
+  console.log(`已生成 项目动态.md（${REPO}）：任务 ${issues.length}，PR ${prs.length}，分支 ${branches.length}`);
+}
