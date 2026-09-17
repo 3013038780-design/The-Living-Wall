@@ -117,7 +117,6 @@ const branchCommits = await Promise.all(
     }
   }),
 );
-const branchByName = new Map(branchCommits.map((b) => [b.name, b]));
 
 // 按任务帖编号建立 分支 / PR 索引
 const branchesByIssue = new Map();

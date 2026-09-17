@@ -1,0 +1,116 @@
+{
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "dpr": 1,
+  "browserVersion": "152.0.7977.83",
+  "target": {
+    "verification": "owned-local-server",
+    "source": {
+      "commit": "a5ff9ab5997dde1c5a5890761d960acd160815a3",
+      "dirty": false,
+      "sourceSha256": "f0a9d6cb73695f285fe8990502a657024dcec40b8ebee543a29416402d6696c2"
+    }
+  },
+  "schemaVersion": 1,
+  "id": "2026-09-17T09-32-20-152Z_2eaa9657-0d55-49b2-bf61-e4ac1baa24f0",
+  "startedAt": "2026-09-17T09:32:20.152Z",
+  "finishedAt": "2026-09-17T09:34:56.267Z",
+  "status": "passed",
+  "visualReview": "pending",
+  "files": [
+    {
+      "path": "browser-results.json",
+      "bytes": 4168,
+      "sha256": "dbd11ec0c41d7e25f64182f2dd750500a3bb5fc22f1661f8fd4de7d7cb0e5690"
+    },
+    {
+      "path": "final-arc-detail.png",
+      "bytes": 270496,
+      "sha256": "a271a273e4e0857d57bbfc363019610a54ced0908d63253bfee37e02111f4efe"
+    },
+    {
+      "path": "final-arc.png",
+      "bytes": 112184,
+      "sha256": "b74acb2a39d7767714f3e6875a2fa2d630805e395a9b5e9cc0e7a11fef214100"
+    },
+    {
+      "path": "final-breath-strokes-recovery.webm",
+      "bytes": 275530,
+      "sha256": "2b3d0c6940baf97a15c630b096f526fc6c2d6a2043407dd247e2260fefb78d0c"
+    },
+    {
+      "path": "final-fast-detail.png",
+      "bytes": 319881,
+      "sha256": "fefbbd845dda84a0c0490f9f27e035ff8389e5d090802d1c95a5aeca2bb40b44"
+    },
+    {
+      "path": "final-fast.png",
+      "bytes": 128971,
+      "sha256": "5cc9198071f84448ecf2b9bf0d6d47ca016dbc4110da1971551c704a5b6836a5"
+    },
+    {
+      "path": "final-horizontal-detail.png",
+      "bytes": 287446,
+      "sha256": "39880284d7f27a3d54c5cecdc6cd28781eda2e5d9d765537680f3304db04f9a5"
+    },
+    {
+      "path": "final-horizontal.png",
+      "bytes": 118316,
+      "sha256": "dfb432e7b6f9308a00e8b024713ca9e555e9849ba234acd18ca2a182028b99ad"
+    },
+    {
+      "path": "final-idle-detail.png",
+      "bytes": 295784,
+      "sha256": "a34484f2a04fb07b146a4d197a74b4861bb44bf966edc4f7aa358c6b332f3089"
+    },
+    {
+      "path": "final-idle.png",
+      "bytes": 121757,
+      "sha256": "855ceeb6b5e273c08f1220ee081da232063f3075c5a361520ba9124816f54754"
+    },
+    {
+      "path": "final-recovery-detail.png",
+      "bytes": 295482,
+      "sha256": "077fa1470cfce7806481c059d2baa13630def25b1de118db6f7f4ea86db6f626"
+    },
+    {
+      "path": "final-recovery.png",
+      "bytes": 120764,
+      "sha256": "267905bd580003f0cd40e809f5719d93b1b5400da061e02458a17a631942a9b2"
+    },
+    {
+      "path": "final-release-detail.png",
+      "bytes": 301789,
+      "sha256": "1b31a4de2767d808d3c47e795586349df3e00cbe74f090bfc27037c5a62fd103"
+    },
+    {
+      "path": "final-release.png",
+      "bytes": 121912,
+      "sha256": "f1a8e62618a3570e1b0147e7e888276577e80730216e6865b26932a1142e3153"
+    },
+    {
+      "path": "final-vertical-detail.png",
+      "bytes": 323317,
+      "sha256": "5ada49d810cf6ac86176020264b5a03b9608527204ddfdcb317ef71e1d3c5a47"
+    },
+    {
+      "path": "final-vertical.png",
+      "bytes": 127763,
+      "sha256": "4fac5860e63d39963180eecfa0d703515a43bee7e8ff2507ffa66ff937f20f37"
+    }
+  ],
+  "recorder": {
+    "source": {
+      "commit": "a5ff9ab5997dde1c5a5890761d960acd160815a3",
+      "dirty": false,
+      "sourceSha256": "f0a9d6cb73695f285fe8990502a657024dcec40b8ebee543a29416402d6696c2"
+    },
+    "scripts": {
+      "lighting-browser-qa.mjs": "03c78707aaead5f954cd90e8282061a6eb4748c9437e9aeff0fed99fba7baab2",
+      "recording-batch.mjs": "a8566ca39456ad9d48ad36bd8371fb61e9896b6d9788822d587bd73d57e1f8f1"
+    }
+  },
+  "url": "http://127.0.0.1:12106/"
+}
