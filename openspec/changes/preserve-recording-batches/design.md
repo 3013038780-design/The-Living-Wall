@@ -14,6 +14,7 @@ Prevent batch reuse and overwriting. Only completed assertions, writes and clean
 - Default invocation launches this worktree's dev server on a free loopback port with strict binding. Compare source identity before/after; reject changes during recording. QA_URL always means unverified target, including localhost.
 - Write shots/state as available. On failure preserve diagnostic evidence, exit nonzero, close browser and owned server. Cleanup failure prevents passed.
 - Keep isolated browser context, real slow strokes/release/startle assertions. No camera or user profile.
+- Initial real capture exposed slow-host timing: retain thresholds, allow up to 90 seconds per stroke, and check the captured state atomically before writing a success shot. Ask the OS for a free port because Vite treats port 0 as its default; strictPort still rejects races.
 - Pure Node tests run in CI; actual browser acceptance runs locally. Generated batches ignored; attach two manifests, hash comparison and one representative video to PR.
 
 ## Risks / Trade-offs

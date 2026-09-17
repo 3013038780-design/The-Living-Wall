@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { createServer as createPortProbe } from 'node:net';
 import assert from 'node:assert/strict';
 import {
   createBatch,
@@ -47,10 +48,20 @@ try {
   });
   let url = process.env.QA_URL;
   if (!url) {
+    // Vite treats port 0 as its default port; ask the OS for a free port first.
+    const probe = createPortProbe();
+    await new Promise((resolve, reject) => {
+      probe.once('error', reject);
+      probe.listen(0, '127.0.0.1', resolve);
+    });
+    const port = probe.address().port;
+    await new Promise((resolve, reject) =>
+      probe.close((error) => (error ? reject(error) : resolve())),
+    );
     const { createServer } = await import('vite');
     server = await createServer({
       root: cwd,
-      server: { host: '127.0.0.1', port: 0, strictPort: true, open: false },
+      server: { host: '127.0.0.1', port, strictPort: true, open: false },
     });
     await server.listen();
     const address = server.httpServer.address();
@@ -99,9 +110,10 @@ try {
   await page.waitForTimeout(1500);
   const state = () =>
     page.evaluate(() => window.qaTools.get_creature_state.execute({}));
-  const shot = async (name) => {
-    const capture = await page.evaluate(() => {
+  const shot = async (name, stroke = false) => {
+    const capture = await page.evaluate((stroke) => {
       const s = window.qaTools.get_creature_state.execute({});
+      if (stroke && !(s.disturb > 0.6 && s.stretch > 0.03)) return null;
       const canvas = document.querySelector('canvas');
       const detail = document.createElement('canvas');
       detail.width = 1000;
@@ -112,7 +124,8 @@ try {
         .getContext('2d')
         .drawImage(canvas, x, y, 500, 380, 0, 0, 1000, 760);
       return { s, full: canvas.toDataURL(), detail: detail.toDataURL() };
-    });
+    }, stroke);
+    if (!capture) return false;
     records.push({ stage: name, ...capture.s });
     await record(
       `${name}.png`,
@@ -122,6 +135,7 @@ try {
       `${name}-detail.png`,
       Buffer.from(capture.detail.split(',')[1], 'base64'),
     );
+    return true;
   };
   await page.evaluate(() => {
     const canvas = document.querySelector('canvas');
@@ -148,7 +162,8 @@ try {
     const began = performance.now();
     let sampled = 0;
     let captured = false;
-    while (performance.now() - began < 12000) {
+    // Bound the wait, but allow a slow machine to actually reach the same gate.
+    while (!captured && performance.now() - began < 90000) {
       if (performance.now() - sampled > 400) {
         s = await state();
         sampled = performance.now();
@@ -168,19 +183,22 @@ try {
             : 48 * Math.sin(t);
       await page.mouse.move(s.x * 1280 + dx, s.y * 720 + dy);
       await page.waitForTimeout(35);
-      if (!captured && t > 6 && s.disturb > 0.6) {
-        await shot(`final-${mode}`);
-        captured = true;
+      if (t > 6 && s.disturb > 0.6 && s.stretch > 0.03) {
+        captured = await shot(`final-${mode}`, true);
       }
     }
     if (!captured) await shot(`final-${mode}`);
   }
   await page.mouse.move(-1, -1);
   await page.waitForTimeout(5000);
+  await page.waitForFunction(
+    () => window.qaTools.get_creature_state.execute({}).disturb === 0,
+    null,
+    { timeout: 90000 },
+  );
   await shot('final-release');
   s = await state();
   await page.mouse.move(s.x * 1280 - 240, s.y * 720);
-  await page.waitForTimeout(80);
   await page.mouse.move(s.x * 1280 + 40, s.y * 720);
   await page.waitForTimeout(300);
   await shot('final-fast');
@@ -188,6 +206,8 @@ try {
   await page.waitForTimeout(6000);
   await page.waitForFunction(
     () => window.qaTools.get_creature_state.execute({}).alarm < 0.01,
+    null,
+    { timeout: 90000 },
   );
   await shot('final-recovery');
   const video = await page.evaluate(async () => {
