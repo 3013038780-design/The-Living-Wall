@@ -1,0 +1,39 @@
+schema: spec-driven
+context: |
+  The Living Wall / 碎光 uses React/TypeScript/Vinext.
+  Follow AGENTS.md: Issue first, isolated worktree, GitHub-user/issue-name branch,
+  PR to main and actual test evidence. PRD owns product scope and current behavior.
+  OpenSpec describes changes; archive does not imply deployment or acceptance.
+  Growth stays in localStorage. Screen overlap is not physical wall contact.
+  Prefer concise Chinese explanations; requirement keywords stay standard.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

@@ -29,6 +29,11 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Validate OpenSpec
+        run: npm run spec:validate
+        env:
+          OPENSPEC_TELEMETRY: '0'
+
       - name: Typecheck
         run: npm run typecheck
 
