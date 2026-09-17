@@ -8,6 +8,7 @@ on:
 
 jobs:
   ci:
+    # Stable required-check name; lint is included despite the legacy label.
     name: test / typecheck / build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -30,6 +31,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
 
       - name: Setup MediaPipe assets
         run: npm run setup:assets
