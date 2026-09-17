@@ -1,0 +1,41 @@
+name: 更新项目动态
+
+# 任务帖 / 改动申请 / 分支有任何新建或状态变化时，重新生成根目录《项目动态.md》。
+# 使用仓库内置 GITHUB_TOKEN，无需配置任何密钥。
+
+on:
+  issues:
+  pull_request:
+  create:
+  delete:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: project-pulse
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 生成项目动态
+        run: node scripts/project-pulse.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 提交更新（仅在有变化时）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 项目动态.md
+          if git diff --cached --quiet; then
+            echo "内容无变化，跳过提交"
+          else
+            git commit -m "chore: 更新项目动态 [skip ci]"
+            git push
+          fi
