@@ -21,7 +21,11 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
+      # 无论由什么事件（含 PR）触发，始终在 main 上重新生成并提交，
+      # 避免默认检出 PR 临时合并点导致机器人推到 PR 分支。
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: 生成项目动态
         run: node scripts/project-pulse.mjs
