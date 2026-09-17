@@ -6,7 +6,7 @@
 // 本地试运行：$env:GH_TOKEN = (gh auth token); node scripts/project-pulse.mjs
 // 无第三方依赖，Node.js 22+ 内置 fetch 直接可用。
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 const REPO = process.env.GITHUB_REPOSITORY || "3013038780-design/The-Living-Wall";
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
@@ -87,6 +87,8 @@ const day = (iso) => (iso ? dayFmt.format(new Date(iso)) : "—");
 const daysAgo = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
 const who = (user) => (user ? `@${user.login}` : "—");
 const link = (text, url) => `[${text}](${url})`;
+// 表格单元格内转义竖线，防止标题里的 | 撑破表格
+const esc = (s) => String(s).replaceAll("|", "\\|");
 
 // ---------- 主流程 ----------
 
@@ -146,65 +148,61 @@ const doneRecently = [
   ...prs.filter((p) => p.merged_at && daysAgo(p.merged_at) <= RECENT_DAYS),
 ];
 
-// ---------- 区块二：正在做的事（未完成任务帖） ----------
+// ---------- 区块二：正在做的事（未完成任务帖，表格） ----------
 
-function prStateText(pr) {
-  if (pr.state === "open") return pr.draft ? "草稿，还在写" : "等待审核";
-  if (pr.merged_at) return `已合并（${day(pr.merged_at)}）`;
+function prStateCell(pr) {
+  if (pr.state === "open") return pr.draft ? "草稿" : "**等待审核**";
+  if (pr.merged_at) return `已合并 ${day(pr.merged_at)}`;
   return "未合并已关闭";
 }
 
-const doingLines = [];
+const doingRows = [];
 for (const issue of openIssues) {
   const n = issue.number;
-  doingLines.push(`### ${link(`#${n} ${issue.title}`, issue.html_url)}`);
-  doingLines.push("");
-  doingLines.push(`- 发起：${who(issue.user)}，${day(issue.created_at)}`);
-  const assignees = (issue.assignees || []).map((a) => `@${a.login}`).join("、");
-  doingLines.push(`- 负责人：${assignees || "暂未指定"}`);
+  const assignees = (issue.assignees || []).map((a) => `@${a.login}`).join("、") || "暂未指定";
   const bs = branchesByIssue.get(n) || [];
-  if (bs.length > 0) {
-    const bText = bs
-      .map((b) => `\`${b.name}\`（最近活动 ${b.date ? day(b.date) : "未知"}）`)
-      .join("、");
-    doingLines.push(`- 工作副本（分支）：${bText}`);
-  } else {
-    doingLines.push("- 工作副本（分支）：还没有，任务可能未开工");
-  }
+  const branchCell =
+    bs.length > 0
+      ? bs
+          .map((b) => `\`${esc(b.name)}\`<br>${b.date ? `${day(b.date)} 有更新` : "暂无提交"}`)
+          .join("<br>")
+      : "未开工";
   const ps = prsByIssue.get(n) || [];
-  if (ps.length > 0) {
-    for (const pr of ps) {
-      doingLines.push(
-        `- 改动申请（PR）：${link(`#${pr.number} ${pr.title}`, pr.html_url)} — ${prStateText(pr)}，作者 ${who(pr.user)}`,
-      );
-    }
-  } else {
-    doingLines.push("- 改动申请（PR）：暂无");
-  }
-  doingLines.push(`- 最近更新：${day(issue.updated_at)}`);
-  doingLines.push("");
+  const prCell =
+    ps.length > 0
+      ? ps.map((pr) => `${link(`#${pr.number}`, pr.html_url)} ${prStateCell(pr)}`).join("<br>")
+      : "—";
+  doingRows.push(
+    `| [**#${n} ${esc(issue.title)}**](${issue.html_url}) | ${assignees} | ${branchCell} | ${prCell} | ${day(issue.updated_at)} |`,
+  );
 }
-if (openIssues.length === 0) {
-  doingLines.push("当前没有进行中的任务帖。", "");
-}
+const doingTable =
+  openIssues.length > 0
+    ? [
+        "| 任务 | 负责人 | 工作副本（分支） | 改动申请（PR） | 最近更新 |",
+        "| --- | --- | --- | --- | --- |",
+        ...doingRows,
+      ].join("\n")
+    : "当前没有进行中的任务。";
 
-// ---------- 区块三：等待审核的改动（open PR） ----------
+// ---------- 区块三：等待审核的改动（open PR，表格） ----------
 
-const reviewLines = [];
-for (const pr of openPrs) {
+const reviewRows = openPrs.map((pr) => {
   const related = new Set(issueNumbersFromBody(pr.body));
   const headNum = issueNumberFromBranch(pr.head?.ref || "");
   if (headNum !== null) related.add(headNum);
-  const relText =
-    related.size > 0 ? [...related].map((n) => `#${n}`).join("、") : "未关联任务帖";
-  const draftText = pr.draft ? "（草稿）" : "";
-  reviewLines.push(
-    `- ${link(`#${pr.number} ${pr.title}`, pr.html_url)}${draftText} — ${who(pr.user)}，${day(pr.created_at)} 提交，关联任务：${relText}`,
-  );
-}
-if (openPrs.length === 0) {
-  reviewLines.push("- 当前没有等待审核的改动。");
-}
+  const relText = related.size > 0 ? [...related].map((n) => `#${n}`).join("、") : "未关联";
+  const state = pr.draft ? "草稿（暂不可审）" : "**等待审核**";
+  return `| ${link(`#${pr.number} ${esc(pr.title)}`, pr.html_url)} | ${who(pr.user)} | ${day(pr.created_at)} | ${relText} | ${state} |`;
+});
+const reviewTable =
+  openPrs.length > 0
+    ? [
+        "| 改动申请 | 作者 | 提交时间 | 关联任务 | 状态 |",
+        "| --- | --- | --- | --- | --- |",
+        ...reviewRows,
+      ].join("\n")
+    : "当前没有等待审核的改动。";
 
 // ---------- 区块四：最近动态（时间线） ----------
 
@@ -246,42 +244,64 @@ for (const b of branchCommits) {
   });
 }
 events.sort((a, b) => new Date(b.at) - new Date(a.at));
-const timelineLines = events
+const timelineRows = events
   .slice(0, TIMELINE_LIMIT)
-  .map((e) => `- ${day(e.at)} — ${e.text}`);
-if (timelineLines.length === 0) {
-  timelineLines.push("- 暂无动态。");
-}
+  .map((e) => `| ${day(e.at)} | ${esc(e.text)} |`);
+const timelineTable =
+  timelineRows.length > 0
+    ? ["| 时间 | 动态 |", "| --- | --- |", ...timelineRows].join("\n")
+    : "暂无动态。";
 
 // ---------- 拼装输出 ----------
 
 const md = `# 项目动态 · The Living Wall
 
-> 本页由机器人自动整理生成，请勿手动修改。最后更新：${timeFmt.format(new Date())}（北京时间）
-> 数据来源：仓库的任务帖（Issues）、改动申请（PR）与分支。新名词见文末「名词小词典」。
+> [!NOTE]
+> 本页由机器人自动整理，请勿手动修改。数据来自仓库的任务帖（Issues）、改动申请（PR）与分支。
+> 最后更新：${timeFmt.format(new Date())}（北京时间）
+> 维护者可用：[让机器人立刻重跑](https://github.com/${REPO}/actions/workflows/project-pulse.yml)（Actions 页点 Run workflow）
 
-**一句话现状**：进行中的任务 ${openIssues.length} 个 · 等待审核的改动 ${openPrs.length} 个 · 近 ${RECENT_DAYS} 天完成 ${doneRecently.length} 项
+| 进行中的任务 | 等待审核的改动 | 近 ${RECENT_DAYS} 天完成 |
+| :-: | :-: | :-: |
+| **${openIssues.length}** | **${openPrs.length}** | **${doneRecently.length}** |
 
 ## 正在做的事
 
-${doingLines.join("\n")}
+${doingTable}
+
 ## 等待审核的改动
 
-${reviewLines.join("\n")}
+${reviewTable}
 
 ## 最近动态
 
-${timelineLines.join("\n")}
+${timelineTable}
 
-## 名词小词典
+<details>
+<summary>名词小词典（点开查看）</summary>
 
 - **任务帖（Issue）**：一件要做的事或要修的问题，大家围绕它讨论。
 - **改动申请（PR / Pull Request）**：成员完成一段工作后提交给大家审核的「改动包裹」，审核通过才会正式生效。
 - **工作副本（分支 / Branch）**：互不打扰的工作副本，通常一个任务一份，完成后再合并回主线。
 - **合并（Merge）**：改动申请通过审核，内容正式进入主线版本。
 - **机器人**：仓库里的自动小助手（GitHub Actions），每当任务帖、改动申请或分支有变化，就会自动刷新本页。
+
+</details>
 `;
 
 const outUrl = new URL("../项目动态.md", import.meta.url);
-await writeFile(outUrl, md, "utf8");
-console.log(`已生成 项目动态.md（${REPO}）：任务 ${issues.length}，PR ${prs.length}，分支 ${branches.length}`);
+// 忽略「最后更新」时间戳进行对比：无实质变化时不改写文件，
+// 机器人因此不会产生仅时间戳不同的空提交。
+const stripStamp = (s) => s.replace(/最后更新：[^\n]*/, "最后更新：<略>");
+let existing = null;
+try {
+  existing = await readFile(outUrl, "utf8");
+} catch {
+  // 首次生成，文件尚不存在
+}
+if (existing !== null && stripStamp(existing) === stripStamp(md)) {
+  console.log("无实质变化，保留原文件与时间戳");
+} else {
+  await writeFile(outUrl, md, "utf8");
+  console.log(`已生成 项目动态.md（${REPO}）：任务 ${issues.length}，PR ${prs.length}，分支 ${branches.length}`);
+}
