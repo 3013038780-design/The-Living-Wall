@@ -47,7 +47,7 @@ python3.12 -m venv .venv
 
 2026-09-15：Mac ARM64 已成功导入官方 SDK，设备枚举为 0。9 项几何算法测试通过。真实深度流已在用户 Mac 上读取（当次帧龄 8 ms），当时未校准。
 
-2026-09-18：补充学习路径和空对照表。Windows 开发会话无法连接相机或运行 Orbbec Viewer；几何单测可在无相机时重跑。空平面校准、触碰精度、遮挡和投影仍待 Mac 现场填写对照表。#25 保持打开。
+2026-09-18：补充学习路径和对照表。Windows 开发会话未检测到 Gemini 335，也没有 Orbbec Viewer。几何单测 9 项通过；模拟模式校准后 `away`（噪声 2.0 mm），80 mm → `near`，12 mm → `contact_candidate`，离开 → `away`。空平面校准、触碰精度、遮挡和投影仍待 Mac 现场填写对照表 A–C。#25 保持打开。
 
 ## macOS USB 拒绝访问（uvc_open -3）
 
