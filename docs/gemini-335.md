@@ -137,4 +137,10 @@ Gemini 335 RGB + 深度
 | HW-01 墙面接触、HW-02 投影四点 | 规划中 |
 | 接到线上碎光 | 未做 |
 
-#25 保持打开，直到现场对照表有真实记录。不要用 `Closes #25` 提前关掉。后续任务拆独立 Issue，依赖写 `depends on #25`。
+#25 保持打开，直到现场对照表 A–C 有真实记录。不要用 `Closes #25` 提前关掉。后续已拆：
+
+- [#45](https://github.com/the-living-wall/The-Living-Wall/issues/45) RGB + D2C + 手部门控
+- [#46](https://github.com/the-living-wall/The-Living-Wall/issues/46) HW-02 投影四点
+- [#47](https://github.com/the-living-wall/The-Living-Wall/issues/47) 接入 `creature.contact`
+
+均 `depends on #25`，不要与现场验收叠进同一 PR。
