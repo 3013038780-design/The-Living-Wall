@@ -3,6 +3,10 @@ import unittest
 from server import Lab
 
 class SnapshotTests(unittest.TestCase):
+    def test_entity_page_is_present(self):
+        from pathlib import Path
+        self.assertTrue((Path(__file__).parent / 'entity.html').is_file())
+
     def test_stale_frame_removes_interaction_geometry(self):
         lab = Lab()
         lab.frame_at = time.monotonic() - 2
