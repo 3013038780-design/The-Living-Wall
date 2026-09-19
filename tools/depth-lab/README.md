@@ -4,7 +4,7 @@
 
 ## 启动
 
-完成下方虚拟环境安装后，双击 `启动深度测试.command`，或在本目录运行 `.venv/bin/python server.py`，打开 http://127.0.0.1:8765 。终端 Ctrl+C 停止服务；网页“断开”停止采集。
+完成下方虚拟环境安装后，双击 `启动深度测试.command`，或在本目录运行 `.venv/bin/python server.py`，打开 http://127.0.0.1:8765 。终端 Ctrl+C 停止服务；网页“断开”停止采集。与主前端深度实验联调时改用 `.venv/bin/python server.py --port 8769`，对应 http://127.0.0.1:8769/ 。
 
 其他 Mac 使用 Python 3.12 ARM64：
 
