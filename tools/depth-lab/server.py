@@ -216,6 +216,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply({'error':'Invalid host'},403)
         if self.path=='/':
             return self.reply((ROOT/'index.html').read_bytes(),mime='text/html; charset=utf-8')
+        if self.path=='/guide.mjs':
+            return self.reply((ROOT/'guide.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
         if self.path=='/api/state':
             snapshot = lab.snapshot()
             snapshot['capture_stdin'] = getattr(self.server, 'capture_stdin', False)

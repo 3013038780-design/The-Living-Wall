@@ -13,3 +13,14 @@ The lab SHALL clear region overlays after missing or stale frames and label exce
 #### Scenario: Lost depth
 - **WHEN** valid depth disappears
 - **THEN** no prior region remains as a current interaction target
+
+### Requirement: Guided numeric recording
+The lab SHALL prompt one action at a time and export only allowlisted numeric diagnostics plus user-reported completion, labelled simulation or camera.
+
+#### Scenario: Disconnection
+- **WHEN** data stops or capture mode changes
+- **THEN** the current action is interrupted and no stale frame is recorded as a valid sample
+
+#### Scenario: Completed sequence
+- **WHEN** all actions receive user confirmation
+- **THEN** the report marks the sequence completed without claiming physical touch acceptance
