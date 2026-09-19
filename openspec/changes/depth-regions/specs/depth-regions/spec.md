@@ -1,5 +1,13 @@
 ## ADDED Requirements
 
+### Requirement: Hand center and wall distance share one capture
+The hand viewer SHALL use SDK depth-to-color alignment and the same frameset for color landmarks and wall displacement. The existing depth diagnostics and hand viewer SHALL share ROI and wall calibration. No alignment, calibration, valid local depth, or fresh input means no proximity activation. This is visible-surface displacement, not physical touch.
+
+#### Scenario: Single hand near the wall
+- WHEN the mean position of wrist and four finger bases has reliable local depth within 200mm for 150ms
+- THEN activate the local hand status, retain until distance exceeds 230mm, and clear on invalid/lost input
+- AND do not claim hand-facing classification or projection alignment
+
 ### Requirement: Region diagnostics
 The local lab SHALL show multiple geometric foreground contours and a separate near-wall band, without labelling them as recognized people.
 

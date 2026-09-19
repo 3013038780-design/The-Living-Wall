@@ -13,6 +13,7 @@ import time
 import numpy as np
 import cv2
 from detector import Detector
+from hand_distance import distance_field
 
 ROOT = Path(__file__).resolve().parent
 
@@ -40,6 +41,9 @@ class Lab:
         self.message = '点击连接相机，或选择明确标注的模拟模式。'
         self.result = {}
         self.image = None
+        self.color_image = None
+        self.hand_field = None
+        self.alignment = None
         self.frame_at = 0
         self.contact = 15
         self.sim_gap = 80
@@ -54,6 +58,7 @@ class Lab:
             self.detector.reset()
             self.result = {}
             self.image = None
+            self.color_image = None
             self.frame_at = 0
             self.message = '正在等待 Gemini 335 深度数据…' if mode in ('camera','pipe') else '模拟数据，不代表相机已连接或触摸已验证。'
             self.stop = threading.Event()
@@ -73,6 +78,7 @@ class Lab:
         with self.lock:
             self.mode = 'stopped'
             self.image = None
+            self.color_image = None
             self.frame_at = 0
             self.result = {}
             self.detector.reset()
@@ -110,15 +116,23 @@ class Lab:
                     self.message = 'Gemini 335 深度流已连接。固定相机，对准平整表面后校准。'
             missed = 0
             while not stop.is_set():
+                color_image = None
+                alignment = None
                 if mode == 'pipe':
                     size = struct.unpack('!I', read_exact(4, stop))[0]
                     if not 0 < size < 4096:
                         raise ValueError('无效相机数据头。')
                     header = json.loads(read_exact(size, stop))
+                    alignment = header.get('alignment')
                     w, h = int(header['width']), int(header['height'])
                     if not 0 < w <= 4096 or not 0 < h <= 4096:
                         raise ValueError('无效深度分辨率。')
                     depth = np.frombuffer(read_exact(w*h*4, stop), '<f4').reshape(h,w)
+                    color_size = header.get('color_bytes', 0)
+                    if not isinstance(color_size, int) or not 0 <= color_size <= 4000000:
+                        raise ValueError('无效彩色帧长度。')
+                    if color_size:
+                        color_image = base64.b64encode(read_exact(color_size, stop)).decode()
                     intr = header['intrinsics']
                     factor = 320/w
                     depth = cv2.resize(depth,(320,round(h*factor)),interpolation=cv2.INTER_NEAREST)
@@ -156,6 +170,10 @@ class Lab:
                     if mode == 'pipe':
                         self.message = 'Gemini 335 真实深度流已连接（独立相机读取进程）。'
                     self.result=self.detector.update(depth,scaled,contact=self.contact)
+                    self.color_image = color_image
+                    self.alignment = alignment
+                    self.hand_field = distance_field(depth, scaled, self.detector,
+                        alignment == 'depth_to_color' and bool(color_image), self.result.get('diagnostic_valid', False))
                     self.frame_at=time.monotonic()
                     visible=(depth>100)&(depth<5000)
                     mapped=np.clip((depth-150)/1850*255,0,255).astype(np.uint8)
@@ -172,6 +190,7 @@ class Lab:
                 self.result={'state':'error'}
                 self.mode='error'
                 self.image=None
+                self.color_image=None
                 self.frame_at=0
                 self.detector.reset()
         finally:
@@ -188,6 +207,9 @@ class Lab:
             if age is not None and age>1.5:
                 result.update(state='unknown',gap_mm=None,position=None,regions=[],near_regions=[],diagnostic_valid=False,message='画面已过期，不能用于触碰判断。')
             return dict(mode=self.mode,message=self.message,result=result,image=self.image,
+                        alignment=self.alignment,
+                        hand_field=self.hand_field if self.mode in ('pipe','camera') and self.detector.plane is not None and not self.detector.calibrating and age is not None and age <= .3 else None,
+                        color_image=self.color_image if age is not None and age <= .5 else None,
                         age_ms=round(age*1000) if age is not None else None,roi=self.detector.roi)
 
 
@@ -218,6 +240,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply((ROOT/'index.html').read_bytes(),mime='text/html; charset=utf-8')
         if self.path=='/guide.mjs':
             return self.reply((ROOT/'guide.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        if self.path=='/hands':
+            return self.reply((ROOT/'hands.html').read_bytes(),mime='text/html; charset=utf-8')
+        if self.path=='/hand-distance.mjs':
+            return self.reply((ROOT/'hand-distance.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        assets = {'/hand-assets/vision_bundle.mjs':'vision_bundle.mjs', '/hand-assets/hand_landmarker.task':'hand_landmarker.task', '/hand-assets/wasm/vision_wasm_internal.js':'wasm/vision_wasm_internal.js', '/hand-assets/wasm/vision_wasm_internal.wasm':'wasm/vision_wasm_internal.wasm', '/hand-assets/wasm/vision_wasm_nosimd_internal.js':'wasm/vision_wasm_nosimd_internal.js', '/hand-assets/wasm/vision_wasm_nosimd_internal.wasm':'wasm/vision_wasm_nosimd_internal.wasm'}
+        if self.path in assets:
+            asset=ROOT/'hand-assets'/assets[self.path]
+            if not asset.is_file():
+                return self.reply({'error':'请先运行 setup_hand_assets.py'},404)
+            mime='application/wasm' if asset.suffix=='.wasm' else 'text/javascript' if asset.suffix in ('.js','.mjs') else 'application/octet-stream'
+            return self.reply(asset.read_bytes(),mime=mime)
         if self.path in ('/entity','/entity.html'):
             return self.reply((ROOT/'entity.html').read_bytes(),mime='text/html; charset=utf-8')
         if self.path=='/api/state':
