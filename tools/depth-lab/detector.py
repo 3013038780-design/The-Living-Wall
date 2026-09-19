@@ -10,6 +10,34 @@ def points(depth, intrinsics):
     return np.stack(((x-cx)*depth/fx, (y-cy)*depth/fy, depth), axis=-1)
 
 
+def measure_patch(depth, reference, reference_valid, intrinsics, normal, roi):
+    """Fixed central patch; no foreground, near-band, or positive-gap selection.
+
+    Signed displacement along the wall normal from the frozen per-pixel wall.
+    This estimates visible-surface separation, never hidden physical contact.
+    """
+    h, w = depth.shape
+    x0,y0,x1,y1 = roi
+    cx,cy=(x0+x1)/2,(y0+y1)/2
+    rx,ry=(x1-x0)*.06,(y1-y0)*.06
+    bounds=[cx-rx,cy-ry,cx+rx,cy+ry]
+    mask=np.zeros(depth.shape,bool)
+    mask[int(bounds[1]*h):int(bounds[3]*h),int(bounds[0]*w):int(bounds[2]*w)] = True
+    valid=mask & reference_valid & np.isfinite(depth) & (depth>100) & (depth<5000)
+    count=int(valid.sum());total=int(mask.sum())
+    result=dict(bounds=bounds, valid_pixels=count, total_pixels=total,
+                valid_ratio=round(count/max(total,1),3), signed_gap_mm=None,
+                spread_p10_p90_mm=None, camera_z_mm=None,
+                quantity='visible_surface_normal_displacement', selection='fixed_patch_unfiltered')
+    if count < 20 or count < total*.8:
+        return result
+    gap=((reference-points(depth,intrinsics)) @ normal)[valid]
+    result.update(signed_gap_mm=round(float(np.median(gap)),2),
+                  spread_p10_p90_mm=[round(float(v),2) for v in np.percentile(gap,[10,90])],
+                  camera_z_mm=round(float(np.median(depth[valid])),2))
+    return result
+
+
 class Detector:
     def __init__(self):
         self.reset()
@@ -137,6 +165,7 @@ class Detector:
         if depth.shape != self.reference_valid.shape or tuple(intrinsics) != self.intrinsics:
             self.reset()
             return dict(result, state='uncalibrated', message='深度尺寸或内参改变，请重新校准空墙。')
+        result['measurement'] = measure_patch(depth, self.reference, self.reference_valid, intrinsics, self.plane[0], self.roi)
         known = valid & roi & self.reference_valid
         if known.sum() < roi.sum()*.65:
             self.pending = None
