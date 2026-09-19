@@ -1,0 +1,49 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>碎光 · 手部感应后台</title>
+<script>if(location.protocol==='file:'||location.port==='8769')location.replace('http://127.0.0.1:8773/hands');</script>
+<style>body{margin:30px;background:#0a1518;color:#e2f6ec;font:18px system-ui}main{max-width:1000px;margin:auto}canvas{width:100%;background:#12252a;border-radius:16px}#status{padding:16px;background:#19322b}p{line-height:1.6}button{padding:12px;font:inherit}small{color:#aec6bc}</style>
+<main><h1>手部感应后台 · 彩色节点版</h1><p id="status">正在准备本地识别模型…</p><canvas width="640" height="480" id="view"></canvas><p id="point">未输出互动点</p><small>只跟踪一只手。绿色连线是关节，橙点是手背中心估计（手腕及四个指根的平均位置）。请让手背朝向相机；程序尚不判断掌心/手背朝向。彩色与深度未完成对齐，此页暂不输出离墙距离或控制投影。画面仅在本机处理，不保存。</small></main>
+<script type="module">
+import {observe} from '/hand-recording.mjs';
+import {createDiagnostics} from '/vision-diagnostics.mjs';
+const diagnoseFrame=createDiagnostics();
+import {sampleDistance,Proximity} from '/hand-distance.mjs';
+const proximity=new Proximity();
+const connection=document.createElement('p');connection.textContent='当前为墙面互动后台 8773 · 与投影共用连接';connection.style.cssText='padding:12px;background:#29473c';document.querySelector('main').prepend(connection);
+const distanceLabel=document.createElement('p');distanceLabel.id='distance';distanceLabel.textContent='离墙距离：等待对齐与校准';document.querySelector('main').append(distanceLabel);
+const diagnostics=document.createElement('a');diagnostics.href='http://127.0.0.1:8769/';diagnostics.target='_blank';diagnostics.textContent='深度设置（选区与空墙校准）';diagnostics.style.color='#bde9c3';document.querySelector('main').prepend(diagnostics);
+const projection=document.createElement('a');projection.href='/projection';projection.target='_blank';projection.textContent='打开墙面碎光 → 全屏后四点对齐';projection.style.cssText='display:block;padding:20px;background:#29473c;color:#e2ffe9;margin:16px 0';document.querySelector('main').prepend(projection);
+const calibrate=document.createElement('button');calibrate.textContent='① 记住空墙（先移开手和身体）';projection.before(calibrate);
+let roi=[.2,.2,.8,.8];
+calibrate.onclick=async()=>{proximity.update(null,performance.now());try{const r=await fetch('/api/calibrate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roi})});const j=await r.json();if(!r.ok)throw Error(j.error);distanceLabel.textContent='正在记住空墙，请保持白框内无人'}catch(e){distanceLabel.textContent=e.message}};
+document.querySelector('small').textContent='手背朝向相机。橙点是手腕与四个指根的平均位置。离墙50cm内持续150ms激活，超过53cm退出（避免边界闪烁）。无可靠手部或距离时不互动。保持本页打开，将另一个碎光窗口放到投影仪；数值记录仅在开始测试后保存本机，不保存视频。白框外不测距。';
+const status=document.querySelector('#status'),label=document.querySelector('#point'),canvas=document.querySelector('#view'),ctx=canvas.getContext('2d');
+const links=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+let model, pendingSince=null, lastGood=0;
+const clear=()=>{pendingSince=null;label.textContent='未输出互动点';proximity.update(null,performance.now());distanceLabel.textContent='离墙距离：无法判断 · 未激活'};
+// Independently clear old points when a request or inference stops updating.
+setInterval(()=>{if(performance.now()-lastGood>500){clear();ctx.clearRect(0,0,canvas.width,canvas.height)}},100);
+try{
+ const {FilesetResolver,HandLandmarker}=await import('/hand-assets/vision_bundle.mjs');
+ model=await HandLandmarker.createFromOptions(await FilesetResolver.forVisionTasks('/hand-assets/wasm'),{baseOptions:{modelAssetPath:'/hand-assets/hand_landmarker.task'},runningMode:'IMAGE',numHands:1,minHandDetectionConfidence:.7,minHandPresenceConfidence:.7});
+}catch(e){status.textContent='模型未加载：'+e.message}
+async function poll(){try{
+ const response=await fetch('/api/state',{signal:AbortSignal.timeout(1500),cache:'no-store'});if(!response.ok)throw Error('相机服务异常');
+ const d=await response.json();if(d.mode==='error')throw Error(d.message||'相机读取进程退出');if(!['pipe','camera'].includes(d.mode)||!d.color_image||d.age_ms==null||d.age_ms>300)throw Error('等待真实彩色画面。请使用「启动手部感应后台.command」；旧启动脚本只读取深度。');
+ const received=performance.now();roi=d.roi||roi;
+ const im=new Image();im.src='data:image/jpeg;base64,'+d.color_image;await im.decode();canvas.width=im.width;canvas.height=im.height;ctx.drawImage(im,0,0);
+ ctx.strokeStyle='#ffffff';ctx.strokeRect(roi[0]*im.width,roi[1]*im.height,(roi[2]-roi[0])*im.width,(roi[3]-roi[1])*im.height);
+ calibrate.disabled=d.alignment!=='depth_to_color'||d.result?.state==='calibrating';
+ if(!model)throw Error('本地模型未就绪，请运行 setup_hand_assets.py 后刷新。');
+ const result=model.detect(im),hand=result.landmarks?.[0];lastGood=performance.now();
+ if(!hand||hand.length!==21||!hand.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1)){clear();status.textContent='彩色画面已连接 · 未可靠识别到完整手部';observe({usable:true,calibrated:!!d.hand_field,joints:[],mm:null,active:false,reason:'未识别完整手部'});await diagnoseFrame(d,hand,null,false);}
+ else{ctx.strokeStyle='#8cf2bd';ctx.lineWidth=2;for(const [a,b] of links){ctx.beginPath();ctx.moveTo(hand[a].x*im.width,hand[a].y*im.height);ctx.lineTo(hand[b].x*im.width,hand[b].y*im.height);ctx.stroke()}for(const p of hand){ctx.beginPath();ctx.arc(p.x*im.width,p.y*im.height,3,0,7);ctx.fillStyle='#d9ffe5';ctx.fill()}
+ const ids=[0,5,9,13,17],x=ids.reduce((v,i)=>v+hand[i].x,0)/5,y=ids.reduce((v,i)=>v+hand[i].y,0)/5;
+ const fresh=performance.now()-received+d.age_ms<=500;
+ const mm=fresh&&d.alignment==='depth_to_color'?sampleDistance(d.hand_field,x,y):null;
+ const active=proximity.update(mm,performance.now());
+ await diagnoseFrame(d,hand,mm,active,fresh);
+ observe({usable:fresh,calibrated:!!d.hand_field,joints:hand.map(p=>[p.x,p.y]),mm,active,reason:!fresh?'数据过期':mm===null?'手部距离无效':''});
+ distanceLabel.textContent=d.alignment!=='depth_to_color'?'当前采集仍是旧版，请重启手部感应后台':!d.hand_field?'请移开身体，校准空墙；若已校准，请检查墙面是否被大面积遮挡':mm===null?'离墙距离：无法判断 · 未激活':`手背表面距墙约 ${(mm/10).toFixed(1)} cm · ${active?'已激活':'未激活'}`;
+ pendingSince??=performance.now();if(performance.now()-pendingSince>=150){ctx.beginPath();ctx.arc(x*im.width,y*im.height,10,0,7);ctx.fillStyle='#ffc477';ctx.fill();label.textContent=`手背中心估计：横向 ${(x*100).toFixed(1)}% · 纵向 ${(y*100).toFixed(1)}%（仅彩色画面坐标）`;status.textContent='一只手已识别 · 节点与中心正在更新'}else{label.textContent='确认手部中…'}}
+}catch(e){observe({usable:false,calibrated:false,joints:[],mm:null,active:false,reason:e.message});clear();ctx.clearRect(0,0,canvas.width,canvas.height);await diagnoseFrame({},null,null,false,false);status.textContent=e.message}setTimeout(poll,100)}poll();
+</script></html>

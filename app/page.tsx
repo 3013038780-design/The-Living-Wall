@@ -4,6 +4,7 @@ import HandCamera from './hand-camera';
 import { Button } from '@/components/ui/button';
 import { Creature, clamp, phaseCopy, type Phase } from '@/lib/creature';
 import { CreatureRenderer } from '@/lib/draw-creature';
+import { wallPoint } from '@/lib/wall-input';
 const storageKey = 'fragment-growth-v1';
 const localDay = () => new Date().toLocaleDateString('sv-SE');
 export default function Home() {
@@ -11,7 +12,8 @@ export default function Home() {
     creature = useRef(new Creature()),
     renderer = useRef(new CreatureRenderer());
   const input = useRef({ x: 0.5, y: 0.5, speed: 0, active: false, time: 0 });
-  const source = useRef<'mouse' | 'camera'>('mouse');
+  const source = useRef<'mouse' | 'camera' | 'wall'>('mouse');
+  const [wall, setWall] = useState(false);
   const pure = useRef(false);
   const [camera, setCamera] = useState(false),
     [message, setMessage] = useState(''),
@@ -29,7 +31,7 @@ export default function Home() {
     const now = performance.now(),
       dt = Math.max(0.008, (now - p.time) / 1000);
     const valid = p.active && now - p.time < 300;
-    const factor = source.current === 'camera' ? 1 - Math.exp(-dt / 0.055) : 1;
+    const factor = source.current !== 'mouse' ? 1 - Math.exp(-dt / 0.055) : 1;
     const nx = valid ? p.x + (clamp(x) - p.x) * factor : clamp(x),
       ny = valid ? p.y + (clamp(y) - p.y) * factor : clamp(y);
     const m = creature.current;
@@ -42,6 +44,21 @@ export default function Home() {
     p.active = true;
     p.time = now;
   }, []);
+  useEffect(() => {
+    if (!['localhost', '127.0.0.1'].includes(location.hostname) || new URLSearchParams(location.search).get('wall') !== '1' || window.parent === window) return;
+    const currentInput = input.current;
+    source.current = 'wall';
+    pure.current = true;
+    queueMicrotask(() => { setWall(true); setProjection(true); });
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== 'http://127.0.0.1:8773' || event.source !== window.parent || event.data?.type !== 'living-wall-hand') return;
+      const point = wallPoint(event.data);
+      if (point) sample(point.x, point.y, point.active);
+    };
+    window.addEventListener('message', receive);
+    const heartbeat = window.setInterval(() => window.parent.postMessage({type:'living-wall-ready'}, 'http://127.0.0.1:8773'), 500);
+    return () => { clearInterval(heartbeat); window.removeEventListener('message', receive); currentInput.active = false; };
+  }, [sample]);
   const reset = useCallback(() => {
     const c = new Creature();
     c.restore(creature.current.archive());
@@ -67,6 +84,7 @@ export default function Home() {
     setMessage(next ? '正在准备摄像头…' : '摄像头已关闭，可以继续用鼠标互动。');
   };
   const exitProjection = useCallback(() => {
+    if (source.current === 'wall') return;
     pure.current = false;
     setProjection(false);
     if (document.fullscreenElement)
@@ -154,7 +172,7 @@ export default function Home() {
         reset();
         return;
       }
-      if (source.current === 'camera') return;
+      if (source.current !== 'mouse') return;
       const offsets: Record<string, [number, number]> = {
         ArrowLeft: [-0.02, 0],
         ArrowRight: [0.02, 0],
@@ -170,7 +188,7 @@ export default function Home() {
       }
     };
     const fullscreen = () => {
-      if (!document.fullscreenElement && pure.current) {
+      if (!document.fullscreenElement && pure.current && source.current !== 'wall') {
         pure.current = false;
         setProjection(false);
       }
@@ -385,7 +403,7 @@ export default function Home() {
       {message && !projection && (
         <output className="message">{message}</output>
       )}
-      {projection && (
+      {projection && !wall && (
         <button className="exit-projection" onClick={exitProjection}>
           退出纯画面
         </button>

@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {sampleDistance,Proximity} from './hand-distance.mjs';
+void test('50/53cm hysteresis, debounce and invalid clearing',()=>{
+ const p=new Proximity();assert.equal(p.update(499,0),false);assert.equal(p.update(499,160),true);
+ assert.equal(p.update(520,200),true);assert.equal(p.update(531,250),false);
+ assert.equal(p.update(520,300),false);p.update(480,400);assert.equal(p.update(480,560),true);
+ assert.equal(p.update(null,580),false);
+});
+void test('patch distance rejects missing and mixed depth',()=>{
+ const a=new Float32Array(100).fill(180),field=()=>({width:10,height:10,data:Buffer.from(a.buffer).toString('base64')});
+ assert.equal(sampleDistance(field(),.5,.5),180);assert.equal(sampleDistance(field(),0,0),null);
+ for(let y=3;y<8;y++)for(let x=3;x<5;x++)a[y*10+x]=0;
+ assert.equal(sampleDistance(field(),.5,.5),null);a.fill(NaN);assert.equal(sampleDistance(field(),.5,.5),null);
+});
