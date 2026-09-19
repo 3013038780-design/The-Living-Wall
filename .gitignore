@@ -48,3 +48,5 @@ next-env.d.ts
 /personal-learning/
 # Alias path used by apprentice mentor (local only)
 /private-learning/
+/tools/depth-lab/reports/
+/Log/

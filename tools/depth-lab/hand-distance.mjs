@@ -18,9 +18,9 @@ export function sampleDistance(field, x, y) {
 export class Proximity {
   constructor(){this.active=false;this.since=null;}
   update(mm,now){
-    if(mm===null||!Number.isFinite(mm)||mm<0||mm>230){this.active=false;this.since=null;return false;}
+    if(mm===null||!Number.isFinite(mm)||mm<0||mm>530){this.active=false;this.since=null;return false;}
     if(this.active)return true;
-    if(mm>200){this.since=null;return false;}
+    if(mm>500){this.since=null;return false;}
     this.since??=now;
     this.active=now-this.since>=150;
     return this.active;

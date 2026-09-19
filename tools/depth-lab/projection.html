@@ -1,0 +1,42 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>碎光 · 墙面互动</title>
+<style>html,body{margin:0;overflow:hidden;background:#000;color:#dcf6e6;font:18px system-ui}canvas{display:block}aside{position:fixed;top:20px;left:20px;max-width:520px;background:#10201eef;padding:20px;border-radius:12px}button{font:inherit;padding:10px;margin:4px;border:1px solid #78998c;background:#c8edce;color:#10201e;border-radius:8px}p{line-height:1.6}#message{position:fixed;bottom:20px;left:20px;pointer-events:none}body.pure aside,body.pure #message{display:none}</style>
+<iframe id="life" title="原版碎光生命" src="http://127.0.0.1:3018/?wall=1"></iframe><canvas tabindex="0" aria-label="四点对齐投影区域"></canvas><aside><b>碎光 · 手部位置校准 v2</b><p>后台保持打开。进入全屏后做四点对齐：把手背中心移到墙上的目标处，保持相近的离墙距离；按空格记录。随后点击「只显示碎光」。</p><button id="full">全屏</button><button id="align">开始四点对齐</button><button id="take" disabled>记录当前点（空格）</button><button id="pure">只显示碎光</button><p id="calibration-progress" aria-live="polite">尚未开始四点对齐</p><p id="notice" role="status" aria-live="assertive"></p><p id="state">等待后台识别手…</p><p id="life-state">正在连接原版碎光…</p><small>双击恢复面板。相机、投影或窗口尺寸改变后重新对齐。四点映射是近似对齐，离墙距离大幅变化仍可能偏移。</small></aside><div id="message"></div>
+<style>#life{position:fixed;inset:0;width:100%;height:100%;border:0;pointer-events:none}canvas{position:fixed;inset:0}aside{z-index:2}</style>
+<style>canvas{width:100vw;height:100vh}body.aligning aside{left:50%;transform:translateX(-50%);max-width:340px;font-size:14px}body.aligning aside>p:first-of-type,body.aligning aside>small{display:none}</style>
+<script type="module">
+import {fit,map,targets} from '/projection-map.mjs';
+const names=['左上','右上','右下','左下'];
+const progress=document.querySelector('#calibration-progress'),notice=document.querySelector('#notice');
+const c=document.querySelector('canvas'),ctx=c.getContext('2d'),state=document.querySelector('#state'),take=document.querySelector('#take');
+let h=null,points=null,input=null,at=0,lastSent=0;
+try{const saved=JSON.parse(localStorage.getItem('wall-hand-map'));if(saved?.w===innerWidth&&saved?.h===innerHeight)h=saved.matrix}catch{}
+const life=document.querySelector('#life');let lifeAt=0;
+addEventListener('message',e=>{if(e.origin==='http://127.0.0.1:3018'&&e.source===life.contentWindow&&e.data?.type==='living-wall-ready')lifeAt=performance.now()});
+function resize(){c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}resize();
+addEventListener('resize',()=>{resize();h=null;points=null;take.disabled=true;state.textContent='尺寸改变，请重新四点对齐';progress.textContent='窗口尺寸变化：请点击开始四点对齐';notice.textContent='记录已暂停，先固定投影窗口大小，再重新开始。'});
+document.querySelector('#full').onclick=()=>document.documentElement.requestFullscreen();
+function prompt(){progress.textContent=`已记录 ${points.length}/4 · 当前第${points.length+1}点：${names[points.length]}`;take.textContent=`记录第${points.length+1}点（空格）`;}
+function ready(){return input?.detected===true&&input.age_ms<=500&&performance.now()-at<=500&&Array.isArray(input.center)&&input.center.length===2&&input.center.every(Number.isFinite)}
+document.querySelector('#align').onclick=()=>{points=[];h=null;take.disabled=false;document.body.classList.remove('pure');document.body.classList.add('aligning');notice.textContent='把手背中心放到墙上黄色圆圈处，再按一次空格。不需要用鼠标点圆圈。';prompt();c.focus()};
+take.onclick=()=>{
+ if(!points){notice.textContent='请先点击开始四点对齐';return}
+ if(!ready()){notice.textContent=`第${points.length+1}点未记录：${input?.reason||'没有新鲜的手部位置，请查看电脑上的手部后台'}。位置准备好后再按空格。`;return}
+ if(points.some(p=>Math.hypot(p[0]-input.center[0],p[1]-input.center[1])<.04)){notice.textContent='未记录：手的位置和之前的点太近，请移到新的黄色目标再按空格。';return}
+ points.push([...input.center]);
+ if(points.length===4){
+   try{h=fit(points);try{localStorage.setItem('wall-hand-map',JSON.stringify({w:innerWidth,h:innerHeight,matrix:h}))}catch{}progress.textContent='已记录 4/4 · 对齐完成';notice.textContent='四点完成。现在点击「只显示碎光」，在光的附近移动手。';}
+   catch(e){h=null;progress.textContent='对齐失败';notice.textContent=e.message+'，请重新开始。'}
+   points=null;take.disabled=true;take.textContent='四点记录结束';document.body.classList.remove('aligning');
+ }else{notice.textContent=`第${points.length}点已记录 ✓，黄色目标已移动到${names[points.length]}。`;prompt()}
+};
+addEventListener('keydown',e=>{if(e.code==='Space'&&points){e.preventDefault();if(!e.repeat)take.click()}});
+addEventListener('keyup',e=>{if(e.code==='Space'&&points)e.preventDefault()});
+document.querySelector('#pure').onclick=()=>{if(!h){state.textContent='先完成四点对齐，让光对应手的位置';return}document.body.classList.add('pure')};
+addEventListener('dblclick',()=>document.body.classList.remove('pure'));
+async function poll(){try{const r=await fetch('/api/interaction',{cache:'no-store',signal:AbortSignal.timeout(800)});if(!r.ok)throw Error();input=await r.json();at=performance.now();if(points)state.textContent=ready()?'手部位置可用 · 可以记录（校准不要求距离有效）':(input.reason||'等待有效手部位置');else state.textContent=!h?'请先全屏，再做四点对齐':input.active?'手部已连接 · 碎光回应中':'等待半米内的手 · 保持后台打开'}catch{input=null;state.textContent='后台连接中断，请检查手部后台'}setTimeout(poll,70)}poll();
+function draw(now){const target=!points&&h&&input?.active&&now-at<500?map(h,input.center):null;
+ if(now-lastSent>70){life.contentWindow.postMessage({type:'living-wall-hand',active:!!target,x:target?.[0],y:target?.[1]},'http://127.0.0.1:3018');lastSent=now;document.querySelector('#life-state').textContent=lifeAt>0&&now-lifeAt<2000?'原版生命已连接 · 呼吸、抚摸与成长':'原版生命未连接，请启动本地网站3018';}
+ ctx.clearRect(0,0,innerWidth,innerHeight);
+ if(points){const t=targets[points.length];ctx.fillStyle='#ffcf7b';ctx.font='bold 24px system-ui';ctx.fillText(String(points.length+1),t[0]*innerWidth+32,t[1]*innerHeight-28);ctx.strokeStyle='#ffcf7b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(t[0]*innerWidth,t[1]*innerHeight,22,0,7);ctx.moveTo(t[0]*innerWidth-32,t[1]*innerHeight);ctx.lineTo(t[0]*innerWidth+32,t[1]*innerHeight);ctx.moveTo(t[0]*innerWidth,t[1]*innerHeight-32);ctx.lineTo(t[0]*innerWidth,t[1]*innerHeight+32);ctx.stroke()}
+ requestAnimationFrame(draw)}requestAnimationFrame(draw);
+</script></html>

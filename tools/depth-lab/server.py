@@ -14,8 +14,13 @@ import numpy as np
 import cv2
 from detector import Detector
 from hand_distance import distance_field
+from hand_recording import Recorder
+from interaction import Interaction
 
 ROOT = Path(__file__).resolve().parent
+recorder = Recorder(ROOT / 'reports' / 'hands')
+comparison_recorder = Recorder(ROOT / 'reports' / 'vision', ['投影关闭（操作者确认）','投影开启（操作者确认）'])
+interaction = Interaction()
 
 
 def read_exact(count, stop):
@@ -123,6 +128,8 @@ class Lab:
                     if not 0 < size < 4096:
                         raise ValueError('无效相机数据头。')
                     header = json.loads(read_exact(size, stop))
+                    if 'error' in header:
+                        raise ValueError('相机采集失败：'+str(header['error']))
                     alignment = header.get('alignment')
                     w, h = int(header['width']), int(header['height'])
                     if not 0 < w <= 4096 or not 0 < h <= 4096:
@@ -236,6 +243,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.local():
             return self.reply({'error':'Invalid host'},403)
+        if self.path == '/hand-recording.mjs':
+            return self.reply((ROOT/'hand-recording.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        if self.path == '/vision-diagnostics.mjs':
+            return self.reply((ROOT/'vision-diagnostics.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        if self.path == '/vision-compare.mjs':
+            return self.reply((ROOT/'vision-compare.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        if self.path == '/api/comparisons':
+            return self.reply(comparison_recorder.listing())
+        if self.path.startswith('/api/comparisons/'):
+            try:
+                return self.reply(comparison_recorder.report(self.path.split('/')[-1]))
+            except ValueError as exc:
+                return self.reply({'error':str(exc)},404)
+        if self.path == '/api/interaction':
+            return self.reply(interaction.snapshot())
+        if self.path == '/projection':
+            return self.reply((ROOT/'projection.html').read_bytes(),mime='text/html; charset=utf-8')
+        if self.path == '/projection-map.mjs':
+            return self.reply((ROOT/'projection-map.mjs').read_bytes(),mime='text/javascript; charset=utf-8')
+        if self.path == '/api/recordings':
+            return self.reply(recorder.listing())
+        if self.path.startswith('/api/recordings/'):
+            try:
+                return self.reply(recorder.report(self.path.split('/')[-1]))
+            except ValueError as exc:
+                return self.reply({'error':str(exc)},404)
         if self.path=='/':
             return self.reply((ROOT/'index.html').read_bytes(),mime='text/html; charset=utf-8')
         if self.path=='/guide.mjs':
@@ -265,9 +298,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply({'error':'Local same-origin JSON requests only'},403)
         try:
             length=int(self.headers.get('Content-Length','0'))
-            if not 0<length<4096:
+            if not 0<length<16384:
                 raise ValueError('Invalid request length')
             args=json.loads(self.rfile.read(length))
+            if self.path.startswith('/api/compare/'):
+                return self.reply(comparison_recorder.command(self.path.split('/')[-1], args))
+            if self.path == '/api/interaction':
+                interaction.publish(args)
+                return self.reply({'ok':True})
+            if self.path.startswith('/api/record/'):
+                return self.reply(recorder.command(self.path.split('/')[-1], args))
             if self.path=='/api/start':
                 if getattr(self.server, 'capture_stdin', False):
                     raise ValueError('独立相机模式会自动连接，无需点击连接。如读取进程已退出，请重新打开权限启动脚本。')
@@ -296,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 return self.reply({'error':'Not found'},404)
             self.reply({'ok':True})
-        except (ValueError,TypeError,KeyError) as exc:
+        except (ValueError,TypeError,KeyError,OSError) as exc:
             self.reply({'error':str(exc)},400)
 
 
