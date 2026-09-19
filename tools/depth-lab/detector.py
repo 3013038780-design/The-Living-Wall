@@ -71,12 +71,34 @@ class Detector:
         self.plane = (normal, offset)
         self.state = 'away'
 
+    def regions(self, mask, gap):
+        """Per-frame geometry only: numbers are not persistent object identities."""
+        clean = cv2.morphologyEx(mask.astype('uint8'), cv2.MORPH_OPEN,
+                                 np.ones((3, 3), np.uint8))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(clean)
+        h, w = gap.shape
+        items = []
+        for label in sorted(range(1, count), key=lambda i: -stats[i, cv2.CC_STAT_AREA])[:12]:
+            area = int(stats[label, cv2.CC_STAT_AREA])
+            if area < 35:
+                continue
+            component = (labels == label).astype('uint8')
+            contours, _ = cv2.findContours(component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contour = cv2.approxPolyDP(max(contours, key=cv2.contourArea), 1.5, True)
+            values = gap[labels == label]
+            items.append(dict(area_px=area, gap_mm=round(float(np.percentile(values, 20)), 1),
+                              median_mm=round(float(np.median(values)), 1),
+                              contour=[[round(float(x)/w, 4), round(float(y)/h, 4)]
+                                       for x, y in contour[:, 0]]))
+        return items
+
     def update(self, depth, intrinsics, now=None, contact=15):
         now = time.monotonic() if now is None else now
         roi = self.mask(depth.shape)
         valid = (depth > 100) & (depth < 5000) & np.isfinite(depth)
         result = dict(state=self.state, gap_mm=None, position=None, progress=0,
-                      message=self.error, contact_mm=contact, noise_mm=round(self.noise, 1))
+                      regions=[], near_regions=[], valid_ratio=round(float((valid & roi).sum()/max(1,roi.sum())), 3),
+                      near_mm=50, diagnostic_valid=False, message=self.error, contact_mm=contact, noise_mm=round(self.noise, 1))
         if self.calibrating:
             self.collect.append(depth.copy())
             result.update(state='calibrating', progress=len(self.collect)/30)
@@ -101,10 +123,17 @@ class Detector:
         floor = max(5, self.noise*3)
         # Stationary background must still agree with the calibrated plane.
         background = valid & roi & (np.abs(gap) < max(15, self.noise*5))
+        # A wide presence band includes forearms/torso; near-wall patches are
+        # segmented separately, even when attached to a much larger component.
+        foreground_mask = valid & roi & (gap > floor) & (gap < 800)
+        result.update(regions=self.regions(foreground_mask, gap),
+                      near_regions=self.regions(foreground_mask & (gap <= 50), gap),
+                      background_ratio=round(float(background.sum()/max(1,roi.sum())), 3),
+                      diagnostic_valid=True)
         if background.sum() < roi.sum()*.35:
             self.pending = None
             self.state = 'unknown'
-            return dict(result, state='unknown', message='平面被大面积遮挡或相机已移动，请移开物体；移动后重新校准。')
+            return dict(result, state='unknown', diagnostic_valid=False, message='平面被大面积遮挡或相机已移动，请移开物体；移动后重新校准。')
         foreground = (valid & roi & (gap > floor) & (gap < 300)).astype('uint8')
         foreground = cv2.morphologyEx(foreground, cv2.MORPH_OPEN, np.ones((3,3), np.uint8))
         n, labels, stats, centres = cv2.connectedComponentsWithStats(foreground)
@@ -128,5 +157,5 @@ class Detector:
             self.state = target
         result.update(state=self.state, noise_mm=round(self.noise,1))
         if floor >= contact:
-            result.update(state='unknown', message='噪声已接近接触阈值，请改善距离与角度后重新校准。')
+            result.update(state='unknown', diagnostic_valid=False, near_regions=[], message='噪声已接近接触阈值，请改善距离与角度后重新校准。')
         return result
