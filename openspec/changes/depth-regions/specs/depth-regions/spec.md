@@ -39,3 +39,12 @@ The detector SHALL learn a per-pixel median and temporal noise from empty-wall c
 #### Scenario: Unknown reference
 - **WHEN** calibration contains missing depth at a pixel
 - **THEN** later depth at that pixel cannot alone generate foreground
+
+### Requirement: 本地自动短测和近墙点跟踪
+系统 SHALL 在不重启相机采集的情况下提供本地辅助页面，只使用近墙区域生成短时跟踪点，禁止用远离墙面的身体整体中心驱动交互。持续150ms确认，最近邻匹配与平滑；区域丢失和无效/过期数据清除跟踪点。此功能不声称语义手部识别或真实接触。
+
+#### Scenario: 一次点击完成动作引导
+- WHEN 已校准真实数据有效，操作者开始短测
+- THEN 自动依次提示空墙、移动、停留、身体干扰、离开五步，每步先准备5秒
+- AND 将每次轮询的数值、提示阶段和质量标记保存到本机报告，不保存图像
+- AND 流程结束只报告观察统计，不自动宣称动作完成或物理测试通过
