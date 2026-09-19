@@ -36,3 +36,15 @@ class RecordingTests(unittest.TestCase):
    self.assertEqual(report['samples'],[])
    c.report['samples'].append(dict(step=0,good=True,tracks=[]));c.persist()
    self.assertEqual(len(json.loads(Path(c.saved).read_text())['samples']),1)
+ def test_persistent_invalid_data_interrupts_and_does_not_save_image(self):
+  import tempfile,json
+  from pathlib import Path
+  from wall_check import Check
+  with tempfile.TemporaryDirectory() as folder:
+   c=Check('http://127.0.0.1:8769',folder);c.current['good']=True;c.start()
+   t=c.started;c.preview='private-image';c.reason='background mismatch'
+   c.health(False,t);self.assertIsNotNone(c.started)
+   c.health(False,t+1);self.assertIsNone(c.started)
+   self.assertEqual(c.phase,'interrupted')
+   contents=Path(c.saved).read_text();self.assertNotIn('private-image',contents)
+   self.assertEqual(json.loads(contents)['status'],'interrupted')

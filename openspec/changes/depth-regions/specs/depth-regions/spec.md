@@ -48,3 +48,9 @@ The detector SHALL learn a per-pixel median and temporal noise from empty-wall c
 - THEN 自动依次提示空墙、移动、停留、身体干扰、离开五步，每步先准备5秒
 - AND 将每次轮询的数值、提示阶段和质量标记保存到本机报告，不保存图像
 - AND 流程结束只报告观察统计，不自动宣称动作完成或物理测试通过
+
+#### Scenario: 无效数据与可见诊断
+- WHEN 连续0.8秒无法可靠判断背景或数据失效
+- THEN 中止自动短测并保存原因，不标记完成
+- AND 操作页始终显示实际错误及新鲜深度预览；预览不写入报告
+- AND 提供明确标记的空墙校准操作，测试过程中禁用
