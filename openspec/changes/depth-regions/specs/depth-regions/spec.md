@@ -24,3 +24,18 @@ The lab SHALL prompt one action at a time and export only allowlisted numeric di
 #### Scenario: Completed sequence
 - **WHEN** all actions receive user confirmation
 - **THEN** the report marks the sequence completed without claiming physical touch acceptance
+
+### Requirement: Frozen local wall background
+The detector SHALL learn a per-pixel median and temporal noise from empty-wall calibration, ignore unreliable reference pixels, and compare new foreground against that frozen reference along the fitted normal.
+
+#### Scenario: Fixed wall relief
+- **WHEN** fixed shallow wall relief is present during calibration and observation
+- **THEN** it is not reported as foreground, while a new object above it remains detectable
+
+#### Scenario: Stationary hand
+- **WHEN** a hand remains stationary after calibration
+- **THEN** it is not absorbed into the background
+
+#### Scenario: Unknown reference
+- **WHEN** calibration contains missing depth at a pixel
+- **THEN** later depth at that pixel cannot alone generate foreground

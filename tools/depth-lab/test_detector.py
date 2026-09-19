@@ -62,6 +62,37 @@ class Tests(unittest.TestCase):
  def test_near_band_and_noise(self):
   self.assertEqual(self.settle(self.frame(55))['near_regions'],[])
   self.assertEqual(self.settle(self.frame(3),11)['regions'],[])
+ def test_fixed_wall_bump_is_background_but_new_hand_remains(self):
+  wall=self.wall.copy();wall[90:145,130:190]-=14
+  self.cal(wall)
+  r=self.settle(wall)
+  self.assertEqual(r['regions'],[])
+  self.assertEqual(r['near_regions'],[])
+  hand=wall.copy();hand[100:130,140:180]-=12
+  r=self.settle(hand,11)
+  self.assertEqual(len(r['near_regions']),1)
+  self.assertAlmostEqual(r['near_regions'][0]['gap_mm'],12,places=0)
+  self.assertEqual(r['state'],'contact_candidate')
+  self.assertEqual(len(self.settle(hand,100)['near_regions']),1)
+  self.assertEqual(self.settle(wall,101)['near_regions'],[])
+ def test_reference_holes_do_not_become_objects(self):
+  wall=self.wall.copy();wall[100:120,130:150]=0
+  self.cal(wall)
+  frame=self.wall.copy();frame[100:120,130:150]-=20
+  self.assertEqual(self.settle(frame)['regions'],[])
+ def test_local_noise_is_not_global_hand_threshold(self):
+  self.d.begin((.2,.2,.8,.8))
+  for i in range(30):
+   wall=self.wall.copy();wall[70:90,90:120]+=2 if i%2 else -2
+   self.d.update(wall,I,now=i*.1)
+  frame=self.wall.copy();frame[70:90,90:120]-=7
+  self.assertEqual(self.settle(frame)['regions'],[])
+  frame[100:130,140:180]-=12
+  self.assertEqual(len(self.settle(frame,11)['near_regions']),1)
+ def test_resolution_change_requires_calibration(self):
+  r=self.d.update(self.wall[:120],I)
+  self.assertEqual(r['state'],'uncalibrated')
+  self.assertEqual(r['regions'],[])
  def test_reset(self):
   self.settle(self.frame(12));self.d.reset();r=self.d.update(self.wall,I);self.assertEqual(r['state'],'uncalibrated');self.assertIsNone(r['position'])
 if __name__=='__main__':unittest.main()
